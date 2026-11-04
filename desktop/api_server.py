@@ -370,6 +370,70 @@ async def delete_session(session_id):
     return jsonify({"status": "deleted"})
 
 
+# ─── LLM provider switching (Claude / Ollama / OpenRouter) ───────
+_PROVIDER_KEY_HINTS = {"claude": "ANTHROPIC_API_KEY", "openrouter": "OPENROUTER_API_KEY"}
+
+
+def _provider_status() -> dict:
+    from config.providers import SWITCHABLE_PROVIDERS, get_active_provider, is_provider_configured, load_provider_config
+    from core.blackout import is_blackout
+
+    cfg = load_provider_config()
+    return {
+        "active": get_active_provider(cfg),
+        "blackout": is_blackout(),
+        "providers": [
+            {
+                "name": name,
+                "label": label,
+                "configured": is_provider_configured(name, cfg),
+                "model": cfg.get(name, {}).get("model", ""),
+            }
+            for name, label in SWITCHABLE_PROVIDERS.items()
+        ],
+    }
+
+
+def _active_model_info() -> dict:
+    """Model and provider label for the currently active LLM provider (shown in the UI)."""
+    try:
+        status = _provider_status()
+        info = next((p for p in status["providers"] if p["name"] == status["active"]), None)
+        if info:
+            return {"model": info["model"], "provider": info["label"]}
+    except Exception:
+        pass
+    return {"model": "", "provider": ""}
+
+
+@app.route(f"{API_PREFIX}/provider", methods=["GET"])
+@require_auth
+async def get_llm_provider():
+    return jsonify(_provider_status())
+
+
+@app.route(f"{API_PREFIX}/provider", methods=["PUT"])
+@require_auth
+async def set_llm_provider():
+    from agent import llm
+    from config.providers import SWITCHABLE_PROVIDERS, is_provider_configured, set_active_provider
+
+    data = await request.get_json(silent=True) or {}
+    name = data.get("provider")
+    if name not in SWITCHABLE_PROVIDERS:
+        return jsonify({"error": f"provider must be one of {list(SWITCHABLE_PROVIDERS)}"}), 422
+    status = _provider_status()
+    if status["blackout"] and name != "ollama":
+        return jsonify({"error": "Blackout mode is on, only Ollama is allowed", **status}), 409
+    if not is_provider_configured(name):
+        hint = _PROVIDER_KEY_HINTS.get(name, "an API key")
+        label = SWITCHABLE_PROVIDERS[name]
+        return jsonify({"error": f"{label} isn't set up yet. Add {hint} to your .env file.", **status}), 409
+    set_active_provider(name)
+    llm.reset_provider()
+    return jsonify(_provider_status())
+
+
 # ─── Output directory ────────────────────────────────────────────
 @app.route(f"{API_PREFIX}/output-dir", methods=["PUT"])
 @require_auth

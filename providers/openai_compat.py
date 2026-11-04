@@ -58,8 +58,9 @@ class OpenAICompatibleProvider(BaseProvider):
             temperature=temperature,
             max_tokens=max_tokens,
             stream=True,
-            stream_options={"include_usage": True},
         )
+        if self.config.get("stream_usage", True):
+            kwargs["stream_options"] = {"include_usage": True}
         if tools:
             kwargs["tools"] = tools
 
@@ -142,4 +143,5 @@ class OpenAICompatibleProvider(BaseProvider):
 
 register_provider("openai", OpenAICompatibleProvider)
 register_provider("openrouter", OpenAICompatibleProvider)
+register_provider("claude", OpenAICompatibleProvider)
 register_provider("openai_compatible", OpenAICompatibleProvider)

@@ -21,8 +21,9 @@ import { toast } from './core/ToastStore'
 const IntelligencePanel = lazy(() => import('./components/sidebar/IntelligencePanel').then(m => ({ default: m.IntelligencePanel })))
 const CommandPalette = lazy(() => import('./components/command/CommandPalette').then(m => ({ default: m.CommandPalette })))
 const SettingsPanel = lazy(() => import('./components/settings/SettingsPanel').then(m => ({ default: m.SettingsPanel })))
-import { streamChat, checkHealth, getSessions, createSession, deleteSession, getOutputDir, setOutputDir, getGoogleAuth, getNews, getWeather, getStocks, getGithubTrending, getEarthquakes, getCrypto, getSpace, getCve, getScreen, getMemory, deleteMemory, getCalendarEvents, getEmailInbox, getEmailUnread, connectEventSource, getAutomations, toggleAutomation, deleteAutomation, triggerAutomation, analyzeVisionImage, getVisionScreen, resolveApproval, streamAutopilot, getKnowledgeContinuity, getComputerStatus, getPrivacyStatus } from './core/api'
-import type { ServerEvent } from './core/api'
+import { streamChat, checkHealth, getSessions, createSession, deleteSession, getOutputDir, setOutputDir, getGoogleAuth, getNews, getWeather, getStocks, getGithubTrending, getEarthquakes, getCrypto, getSpace, getCve, getScreen, getMemory, deleteMemory, getCalendarEvents, getEmailInbox, getEmailUnread, connectEventSource, getAutomations, toggleAutomation, deleteAutomation, triggerAutomation, analyzeVisionImage, getVisionScreen, resolveApproval, streamAutopilot, getKnowledgeContinuity, getComputerStatus, getPrivacyStatus, getProvider, setProvider } from './core/api'
+import type { ServerEvent, ProviderStatus } from './core/api'
+import { parseProviderCommand } from './core/voiceCommands'
 import { BrainView } from './components/autopilot/BrainView'
 import { ZenStage } from './components/zen/ZenStage'
 import { Onboarding } from './components/zen/Onboarding'
@@ -533,11 +534,46 @@ const [pendingApproval, setPendingApproval] = useState<ApprovalRequest | null>(n
     ? active.messages.filter(m => m.content.toLowerCase().includes(searchQuery.toLowerCase()))
     : active.messages
 
+  // ─── LLM provider switching (Claude / Ollama / OpenRouter) ─────
+  const [providerStatus, setProviderStatus] = useState<ProviderStatus | null>(null)
+  useEffect(() => {
+    if (backendOnline) getProvider().then(setProviderStatus).catch(() => {})
+  }, [backendOnline])
+
+  // Keep the model/provider labels in step with the active provider (initial load and every switch).
+  useEffect(() => {
+    const info = providerStatus?.providers.find(p => p.name === providerStatus.active)
+    if (info) state.setMetrics({ model: info.model || '-', provider: info.label })
+  }, [providerStatus])
+
+  // Works from the command palette, settings, typed text and voice. `userText` is the spoken/typed command, if any.
+  const handleSwitchProvider = useCallback(async (name: string, userText?: string) => {
+    let reply: string
+    try {
+      const status = await setProvider(name)
+      setProviderStatus(status)
+      const info = status.providers.find(p => p.name === name)
+      reply = `Switched to ${info?.label ?? name}${info?.model ? ` (${info.model})` : ''}.`
+    } catch (e: any) {
+      reply = e?.message || 'Could not switch provider.'
+    }
+    state.updateMessages(msgs => [
+      ...msgs,
+      ...(userText ? [{ id: nextId(), role: 'user' as const, content: userText }] : []),
+      { id: nextId(), role: 'assistant' as const, content: reply },
+    ])
+  }, [])
+
   const [lastUserMsg, setLastUserMsg] = useState('')
   const lastUserMsgRef = useRef('')
   useEffect(() => { lastUserMsgRef.current = lastUserMsg })
   const handleSend = useCallback(async (text: string) => {
     if (loading) return
+    const providerCommand = parseProviderCommand(text)
+    if (providerCommand) {
+      handleSwitchProvider(providerCommand, text)
+      return
+    }
     setLastUserMsg(text)
     abortRef.current?.abort()
     const controller = new AbortController()
@@ -752,7 +788,7 @@ const [pendingApproval, setPendingApproval] = useState<ApprovalRequest | null>(n
       },
     )
     abortRef.current = stream
-  }, [loading, activeSessionId, persona])
+  }, [loading, activeSessionId, persona, handleSwitchProvider])
 
   // Stable ref for handleSend so effects always have the latest version
   const handleSendRef = useRef<(text: string) => void>(null as any)
@@ -897,6 +933,10 @@ const [pendingApproval, setPendingApproval] = useState<ApprovalRequest | null>(n
     { id: 'persona-friday', label: 'Persona: FRIDAY', action: () => handleSetPersona('friday') },
     { id: 'persona-jarvis', label: 'Persona: J.A.R.V.I.S.', action: () => handleSetPersona('jarvis') },
     { id: 'persona-cortana', label: 'Persona: Cortana', action: () => handleSetPersona('cortana') },
+
+    { id: 'provider-claude', label: `Model: Claude${providerStatus?.active === 'claude' ? ' (active)' : ''}`, action: () => handleSwitchProvider('claude') },
+    { id: 'provider-ollama', label: `Model: Ollama (local)${providerStatus?.active === 'ollama' ? ' (active)' : ''}`, action: () => handleSwitchProvider('ollama') },
+    { id: 'provider-openrouter', label: `Model: OpenRouter${providerStatus?.active === 'openrouter' ? ' (active)' : ''}`, action: () => handleSwitchProvider('openrouter') },
 
     { id: 'vision-screen', label: 'Analyze screen', action: handleVisionCaptureScreen },
     { id: 'vision-camera', label: 'Capture camera', action: handleVisionCaptureCamera },
@@ -1239,6 +1279,8 @@ const [pendingApproval, setPendingApproval] = useState<ApprovalRequest | null>(n
           onGoogleConnect={handleGoogleConnect}
           persona={persona}
           onSetPersona={handleSetPersona}
+          providerStatus={providerStatus}
+          onSetProvider={(name) => handleSwitchProvider(name)}
         />
         </Suspense>
       )}

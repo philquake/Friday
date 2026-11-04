@@ -37,6 +37,64 @@ def headers():
     return {"X-API-Key": "test-secret"}
 
 
+class TestProviderSwitch:
+    @pytest.fixture(autouse=True)
+    def isolated_config(self, tmp_path, monkeypatch):
+        from config import providers as cfg_mod
+
+        monkeypatch.setattr(cfg_mod, "_OVERRIDE_PATH", str(tmp_path / "active_provider.json"))
+        monkeypatch.setattr(cfg_mod, "CONFIG_PATH", str(tmp_path / "missing.toml"))
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+        monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+        monkeypatch.setattr("core.blackout.is_blackout", lambda: False)
+
+    async def test_get_lists_three_providers(self, app, headers):
+        async with app.test_client() as client:
+            resp = await client.get("/api/v1/provider", headers=headers)
+            data = await resp.get_json()
+        assert resp.status_code == 200
+        assert data["active"] == "ollama"
+        assert [p["name"] for p in data["providers"]] == ["claude", "ollama", "openrouter"]
+
+    async def test_switch_requires_auth(self, app):
+        async with app.test_client() as client:
+            resp = await client.put("/api/v1/provider", json={"provider": "ollama"})
+        assert resp.status_code == 401
+
+    async def test_unknown_provider_rejected(self, app, headers):
+        async with app.test_client() as client:
+            resp = await client.put("/api/v1/provider", json={"provider": "skynet"}, headers=headers)
+        assert resp.status_code == 422
+
+    async def test_unconfigured_claude_gives_helpful_409(self, app, headers):
+        async with app.test_client() as client:
+            resp = await client.put("/api/v1/provider", json={"provider": "claude"}, headers=headers)
+            data = await resp.get_json()
+        assert resp.status_code == 409
+        assert "ANTHROPIC_API_KEY" in data["error"]
+        assert data["active"] == "ollama"
+
+    async def test_switch_to_configured_claude_persists_and_resets(self, app, headers, monkeypatch):
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
+        resets = []
+        monkeypatch.setattr("agent.llm.reset_provider", lambda: resets.append(1))
+        async with app.test_client() as client:
+            resp = await client.put("/api/v1/provider", json={"provider": "claude"}, headers=headers)
+            data = await resp.get_json()
+        assert resp.status_code == 200
+        assert data["active"] == "claude"
+        assert resets == [1]
+
+    async def test_blackout_blocks_cloud_providers(self, app, headers, monkeypatch):
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
+        monkeypatch.setattr("core.blackout.is_blackout", lambda: True)
+        async with app.test_client() as client:
+            resp = await client.put("/api/v1/provider", json={"provider": "claude"}, headers=headers)
+        assert resp.status_code == 409
+
+
+
+
 class TestHealth:
     async def test_health_ok(self, app):
         async with app.test_client() as client:

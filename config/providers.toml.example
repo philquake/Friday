@@ -15,6 +15,16 @@ temperature = 0.7
 max_tokens = 4096
 provider_name = "openai"
 
+# Claude via Anthropic's OpenAI-compatible endpoint. Put ANTHROPIC_API_KEY in .env (or set api_key here).
+# Optional: all of these have built-in defaults, so this section can be omitted.
+[claude]
+api_key = ""
+base_url = "https://api.anthropic.com/v1/"
+model = "claude-sonnet-5-5"
+fallback_model = "claude-haiku-5-5"
+stream_usage = false
+provider_name = "claude"
+
 [openrouter]
 api_key = ""
 base_url = "https://openrouter.ai/api/v1"

@@ -527,3 +527,36 @@ export function connectEventSource(
     es = null
   }
 }
+
+/* ─── LLM provider (Claude / Ollama / OpenRouter) ─── */
+export interface ProviderInfo {
+  name: 'claude' | 'ollama' | 'openrouter'
+  label: string
+  configured: boolean
+  model: string
+}
+
+export interface ProviderStatus {
+  active: string
+  blackout: boolean
+  providers: ProviderInfo[]
+  error?: string
+}
+
+export async function getProvider(): Promise<ProviderStatus> {
+  const res = await fetch(`${API_BASE}/provider`, { headers: authHeaders() })
+  if (!res.ok) throw new Error(`Provider lookup failed (${res.status})`)
+  return res.json()
+}
+
+/** Resolves with the new status; throws an Error carrying the server's message (e.g. missing API key). */
+export async function setProvider(name: string): Promise<ProviderStatus> {
+  const res = await fetch(`${API_BASE}/provider`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify({ provider: name }),
+  })
+  const body = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(body.error || `Could not switch provider (${res.status})`)
+  return body
+}
