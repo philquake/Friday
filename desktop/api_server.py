@@ -281,6 +281,43 @@ async def chat():
     return Response(generate(), mimetype="text/event-stream")
 
 
+# ─── Text-to-speech (offline Kokoro) ─────────────────────────────
+_MAX_TTS_LENGTH = 2000
+
+
+@app.route(f"{API_PREFIX}/tts/status", methods=["GET"])
+@require_auth
+async def tts_status():
+    from voice import kokoro_tts
+
+    return jsonify({"available": kokoro_tts.is_available(), "voices": kokoro_tts.AVAILABLE_VOICES})
+
+
+@app.route(f"{API_PREFIX}/tts", methods=["POST"])
+@require_auth
+async def tts():
+    from core.persona import get_persona_config
+    from voice import kokoro_tts
+
+    data = await request.get_json(silent=True) or {}
+    text = data.get("text", "")
+    if not isinstance(text, str) or not text.strip():
+        return jsonify({"error": "text cannot be empty"}), 422
+    if len(text) > _MAX_TTS_LENGTH:
+        return jsonify({"error": f"text exceeds {_MAX_TTS_LENGTH} characters"}), 422
+    if not kokoro_tts.is_available():
+        return jsonify({"error": "Kokoro TTS not available"}), 503
+
+    cfg = get_persona_config(data.get("persona") or "friday")
+    try:
+        audio = await asyncio.to_thread(
+            kokoro_tts.synthesize, text, cfg.get("tts_voice", kokoro_tts.DEFAULT_VOICE), cfg.get("tts_rate", 1.0)
+        )
+    except Exception as e:
+        return jsonify({"error": f"TTS failed: {e}"}), 500
+    return Response(audio, mimetype="audio/wav")
+
+
 # ─── Autopilot ────────────────────────────────────────────────────
 @app.route(f"{API_PREFIX}/autopilot", methods=["POST"])
 @require_auth

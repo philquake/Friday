@@ -16,6 +16,7 @@ PERSONAS = {
         ),
         "tts_rate": 0.9,
         "tts_pitch": 1.0,
+        "tts_voice": "bf_emma",
     },
     "friday": {
         "name": "Friday",
@@ -30,6 +31,7 @@ PERSONAS = {
         ),
         "tts_rate": 1.0,
         "tts_pitch": 1.1,
+        "tts_voice": "af_heart",
     },
     "cortana": {
         "name": "Cortana",
@@ -44,6 +46,7 @@ PERSONAS = {
         ),
         "tts_rate": 0.95,
         "tts_pitch": 1.05,
+        "tts_voice": "af_bella",
     },
 }
 

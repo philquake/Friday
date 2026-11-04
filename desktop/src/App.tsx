@@ -427,7 +427,7 @@ const [pendingApproval, setPendingApproval] = useState<ApprovalRequest | null>(n
       if (content !== lastMsgRef.current && content.length > 10) {
         lastMsgRef.current = content
         const tts = PERSONA_TTS[persona]
-        speakResponse(content, tts)
+        speakResponse(content, { ...tts, persona })
       }
     }
   }, [active.messages, voiceOutputEnabled, speakResponse, persona])
@@ -867,7 +867,7 @@ const [pendingApproval, setPendingApproval] = useState<ApprovalRequest | null>(n
   const playBriefing = useCallback(() => {
     if (briefing && voiceOutputEnabled) {
       const tts = PERSONA_TTS[persona]
-      speakResponse(briefing.summary, tts)
+      speakResponse(briefing.summary, { ...tts, persona })
     }
   }, [briefing, voiceOutputEnabled, speakResponse, persona])
 
