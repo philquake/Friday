@@ -1,6 +1,7 @@
 import { memo, useState } from 'react'
 import type { MemoryData } from '../../types'
 import { Skeleton } from '../common/Skeleton'
+import { Chevron, toggleProps, useCollapsed } from '../common/Collapsible'
 
 interface MemoryPanelProps {
   data: MemoryData | null
@@ -8,6 +9,7 @@ interface MemoryPanelProps {
 }
 
 export const MemoryPanel = memo(function MemoryPanel({ data, onDelete }: MemoryPanelProps) {
+  const [collapsed, toggle] = useCollapsed('panel:memory')
   const [search, setSearch] = useState('')
   const [tab, setTab] = useState<'semantic' | 'embedding'>('embedding')
 
@@ -24,10 +26,10 @@ export const MemoryPanel = memo(function MemoryPanel({ data, onDelete }: MemoryP
 
   return (
     <div className="rounded-xl overflow-hidden" style={{ background: '#0D0D0D', border: '1px solid rgba(255,255,255,0.06)' }}>
-      <div className="px-3 py-2.5 text-xs font-medium tracking-wider flex items-center justify-between" style={{ color: '#888', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-        <span>MEMORY {data ? `(${count})` : ''}</span>
-        {data && (
-          <div className="flex gap-1 text-[10px]">
+      <div {...toggleProps(collapsed, toggle)} className="px-3 py-2.5 text-xs font-medium tracking-wider flex items-center justify-between cursor-pointer select-none" style={{ color: '#888', borderBottom: collapsed ? 'none' : '1px solid rgba(255,255,255,0.04)' }}>
+        <span className="flex items-center gap-1.5"><Chevron collapsed={collapsed} />MEMORY {data ? `(${count})` : ''}</span>
+        {data && !collapsed && (
+          <div className="flex gap-1 text-[10px]" onClick={e => e.stopPropagation()}>
             <button
               onClick={() => setTab('embedding')}
               className="px-1.5 py-0.5 rounded transition-all"
@@ -46,7 +48,7 @@ export const MemoryPanel = memo(function MemoryPanel({ data, onDelete }: MemoryP
         )}
       </div>
 
-      {data === null ? (
+      {collapsed ? null : data === null ? (
         <div className="space-y-2 p-3">
           {[1, 2, 3, 4].map(i => (
             <div key={i} className="flex items-center gap-2">

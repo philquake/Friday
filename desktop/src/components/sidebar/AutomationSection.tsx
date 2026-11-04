@@ -1,5 +1,6 @@
 import { memo, useState } from 'react'
 import type { Automation } from '../../types'
+import { Chevron, toggleProps, useCollapsed } from '../common/Collapsible'
 
 interface AutomationSectionProps {
   automations: Automation[]
@@ -36,6 +37,7 @@ export const AutomationSection = memo(function AutomationSection({
   automations, onToggle, onDelete, onTrigger,
 }: AutomationSectionProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [collapsed, toggle] = useCollapsed('panel:automations')
 
   return (
     <div
@@ -43,14 +45,15 @@ export const AutomationSection = memo(function AutomationSection({
       style={{ background: '#0D0D0D', border: '1px solid rgba(255,255,255,0.06)' }}
     >
       <div
-        className="px-3 py-2.5 text-xs font-medium tracking-wider flex items-center justify-between"
-        style={{ color: '#888', borderBottom: '1px solid rgba(255,255,255,0.04)' }}
+        {...toggleProps(collapsed, toggle)}
+        className="px-3 py-2.5 text-xs font-medium tracking-wider flex items-center justify-between cursor-pointer select-none"
+        style={{ color: '#888', borderBottom: collapsed ? 'none' : '1px solid rgba(255,255,255,0.04)' }}
       >
-        <span>⏰ AUTOMATIONS</span>
+        <span className="flex items-center gap-1.5"><Chevron collapsed={collapsed} />⏰ AUTOMATIONS</span>
         <span className="text-[10px]" style={{ color: '#666' }}>{automations.length}</span>
       </div>
 
-      {automations.length === 0 ? (
+      {collapsed ? null : automations.length === 0 ? (
         <div className="px-3 py-6 text-center text-[11px]" style={{ color: '#555' }}>
           No automations yet. Say "create automation" in chat.
         </div>

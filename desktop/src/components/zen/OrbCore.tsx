@@ -1,6 +1,8 @@
 import { memo } from 'react'
 import type { OrbState } from '../../types'
 import { JarvisOrb } from '../center/AiCore'
+import { toggleFloatingOrb } from '../../core/orbChannel'
+import { orbColor } from '../../core/orbColors'
 
 /* ─── Zen monochrome palette ─── */
 const C_TEXT = '#e5e5e5'
@@ -52,6 +54,7 @@ export const OrbCore = memo(function OrbCore({
   time = '',
 }: OrbCoreProps) {
   const isOnline = orbState !== 'offline'
+  const stateColor = orbColor(voiceActivity && isOnline ? 'speaking' : orbState)
 
   const chips: AmbientChip[] = [
     temperature != null
@@ -63,23 +66,32 @@ export const OrbCore = memo(function OrbCore({
   ].filter(Boolean) as AmbientChip[]
 
   return (
-    <div className="relative flex items-center justify-center w-full h-full" style={{ zIndex: 1 }}>
+    <div
+      className="relative flex items-center justify-center w-full h-full"
+      style={{ zIndex: 1 }}
+      title="Right-click to float the orb on your desktop"
+      onContextMenu={e => {
+        e.preventDefault()
+        toggleFloatingOrb()
+      }}
+    >
       <div className="absolute inset-0 pointer-events-none">
         <JarvisOrb orbState={orbState} handPosition={handPosition} voiceActivity={voiceActivity} />
       </div>
 
       <div
         className="relative flex items-center gap-2 px-3 py-1.5 rounded-full glass animate-fade-in"
-        style={{ border: '1px solid rgba(255,255,255,0.08)' }}
+        style={{ border: `1px solid ${stateColor}40`, transition: 'border-color 0.6s' }}
       >
         <span
           className={`inline-block w-1.5 h-1.5 rounded-full ${isOnline ? 'animate-pulse-glow' : ''}`}
           style={{
-            background: isOnline ? '#ffffff' : C_TERTIARY,
-            boxShadow: isOnline ? '0 0 8px rgba(255,255,255,0.5)' : 'none',
+            background: isOnline ? stateColor : C_TERTIARY,
+            boxShadow: isOnline ? `0 0 8px ${stateColor}` : 'none',
+            transition: 'background 0.6s, box-shadow 0.6s',
           }}
         />
-        <span className="text-[11px] tracking-[0.2em]" style={{ color: isOnline ? C_TEXT : C_TERTIARY }}>
+        <span className="text-[11px] tracking-[0.2em]" style={{ color: isOnline ? stateColor : C_TERTIARY, transition: 'color 0.6s' }}>
           {isOnline ? (ORB_STATE_LABELS[orbState] ?? orbState.toUpperCase()) : 'OFFLINE'}
         </span>
         {location && <span className="text-[10px] uppercase tracking-widest" style={{ color: C_TERTIARY }}>{location}</span>}

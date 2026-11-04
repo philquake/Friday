@@ -43,13 +43,13 @@ def main():
     )
     args = parser.parse_args()
 
-    if args.ui:
-        _launch_ui()
-        return
-
     if sys.platform == "win32":
         sys.stdout.reconfigure(encoding="utf-8")
         sys.stdin.reconfigure(encoding="utf-8")
+
+    if args.ui:
+        _launch_ui()
+        return
 
     lang = args.lang
     label = LANG_LABELS.get(lang, "English")
@@ -92,18 +92,40 @@ def _launch_ui():
         api_cmd = [sys.executable, os.path.join(desktop, "api_server.py")]
         front_cmd = ["cmd", "/c", "npm", "run", "dev"]
 
+    electron_name = "electron.cmd" if sys.platform == "win32" else "electron"
+    electron_bin = os.path.join(desktop, "node_modules", ".bin", electron_name)
+    use_electron = os.path.exists(electron_bin)
+
+    # With Electron, server output goes to logs/*.log and is shown in the app's hidden console drawer.
+    api_out = front_out = None
+    front_flags = subprocess.CREATE_NEW_CONSOLE if sys.platform == "win32" else 0
+    if use_electron:
+        log_dir = os.path.join(root, "logs")
+        os.makedirs(log_dir, exist_ok=True)
+        api_out = open(os.path.join(log_dir, "api.log"), "w", encoding="utf-8")  # noqa: SIM115
+        front_out = open(os.path.join(log_dir, "vite.log"), "w", encoding="utf-8")  # noqa: SIM115
+        front_flags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+
     try:
-        api = subprocess.Popen(api_cmd, cwd=desktop)
+        api = subprocess.Popen(api_cmd, cwd=desktop, stdout=api_out, stderr=subprocess.STDOUT if api_out else None)
         procs.append(api)
         time.sleep(2.0)
 
         front = subprocess.Popen(
-            front_cmd, cwd=desktop, creationflags=subprocess.CREATE_NEW_CONSOLE if sys.platform == "win32" else 0
+            front_cmd,
+            cwd=desktop,
+            creationflags=front_flags,
+            stdout=front_out,
+            stderr=subprocess.STDOUT if front_out else None,
         )
         procs.append(front)
 
         time.sleep(5.0)
-        webbrowser.open("http://localhost:5173")
+        if use_electron:
+            env = {k: v for k, v in os.environ.items() if k != "ELECTRON_RUN_AS_NODE"}
+            procs.append(subprocess.Popen([electron_bin, "."], cwd=desktop, env=env))
+        else:
+            webbrowser.open("http://localhost:5173")
 
         while True:
             time.sleep(1.0)

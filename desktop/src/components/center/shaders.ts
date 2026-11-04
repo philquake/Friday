@@ -267,7 +267,7 @@ export function createCoreMaterial(): THREE.ShaderMaterial {
     },
     transparent: true,
     side: THREE.DoubleSide,
-    blending: THREE.NormalBlending,
+    blending: THREE.AdditiveBlending, // dark areas add nothing, so the orb blends into any backdrop
     depthWrite: false,
   })
 }
@@ -302,11 +302,11 @@ export function createHoloMaterial(): THREE.ShaderMaterial {
       uScanSpeed: { value: 2.0 },
       uGridScale: { value: 12.0 },
       uLineColor: { value: new THREE.Color('#FFFFFF') },
-      uBgColor: { value: new THREE.Color('#0F1115') },
+      uBgColor: { value: new THREE.Color('#000000') },
     },
     transparent: true,
     side: THREE.DoubleSide,
-    blending: THREE.NormalBlending,
+    blending: THREE.AdditiveBlending,
     depthWrite: false,
   })
 }

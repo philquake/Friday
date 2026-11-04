@@ -1,6 +1,7 @@
 import { memo } from 'react'
 import type { CalendarEvent } from '../../types'
 import { Skeleton } from '../common/Skeleton'
+import { Chevron, toggleProps, useCollapsed } from '../common/Collapsible'
 
 interface CalendarPanelProps {
   events: CalendarEvent[]
@@ -10,14 +11,15 @@ interface CalendarPanelProps {
 
 export const CalendarPanel = memo(function CalendarPanel({ events, authStatus, onConnect }: CalendarPanelProps) {
   const needsAuth = authStatus === 'not_authenticated' || authStatus === 'missing_credentials' || authStatus === 'needs_auth'
+  const [collapsed, toggle] = useCollapsed('panel:calendar')
   return (
     <div className="rounded-xl overflow-hidden" style={{ background: '#0D0D0D', border: '1px solid rgba(255,255,255,0.06)' }}>
-      <div className="px-3 py-2.5 text-xs font-medium tracking-wider flex items-center justify-between" style={{ color: '#888', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-        <span>CALENDAR</span>
+      <div {...toggleProps(collapsed, toggle)} className="px-3 py-2.5 text-xs font-medium tracking-wider flex items-center justify-between cursor-pointer select-none" style={{ color: '#888', borderBottom: collapsed ? 'none' : '1px solid rgba(255,255,255,0.04)' }}>
+        <span className="flex items-center gap-1.5"><Chevron collapsed={collapsed} />CALENDAR</span>
         {authStatus === 'authenticated' && <span className="text-[10px]" style={{ color: '#22c55e' }}>connected</span>}
         {authStatus === '' && <span className="text-[10px] animate-pulse" style={{ color: '#888' }}>loading...</span>}
       </div>
-      {authStatus === '' ? (
+      {collapsed ? null : authStatus === '' ? (
         <div className="space-y-2 p-3">
           {[1, 2].map(i => (
             <div key={i} className="flex items-center gap-2">

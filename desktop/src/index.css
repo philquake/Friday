@@ -82,6 +82,17 @@ body {
   background: radial-gradient(ellipse 100% 80% at 50% 30%, transparent 40%, rgba(0,0,0,0.6) 100%);
 }
 
+/* Floating orb window: fully transparent, no vignette / scanlines / backdrop */
+html.orb-window,
+html.orb-window body,
+html.orb-window #root {
+  background: transparent !important;
+}
+html.orb-window #root::before,
+html.orb-window #root::after {
+  display: none;
+}
+
 ::-webkit-scrollbar { width: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }

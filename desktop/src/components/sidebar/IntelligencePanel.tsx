@@ -1,4 +1,5 @@
-import { memo } from 'react'
+import { createContext, memo, useContext } from 'react'
+import { Chevron, toggleProps, useCollapsed } from '../common/Collapsible'
 import type { MemoryData, NewsItem, WeatherData, SystemInfo, Earthquake, CryptoData, SpaceData, CveItem, WorldClock, ScreenData, CalendarEvent, EmailMessage, Automation } from '../../types'
 import { WEATHER_CODES } from '../../types'
 import { SkeletonSection } from '../common/Skeleton'
@@ -80,7 +81,11 @@ const LANG_COLORS: Record<string, string> = {
   Rust: '#dea584', 'C++': '#f34b7d', Java: '#b07219',
 }
 
+/** Inside a PanelCell the cell's own collapsible header replaces the section label. */
+const InCellContext = createContext(false)
+
 function Label({ children }: { children: React.ReactNode }) {
+  if (useContext(InCellContext)) return null
   return <div className="text-[10px] tracking-[0.2em] mb-2 px-3" style={{ color: '#666' }}>{children}</div>
 }
 
@@ -373,14 +378,27 @@ const AgentActivitySection = memo(function AgentActivitySection({ tools }: { too
 })
 
 /* ─── Intelligence Panel ─── */
-function PanelCell({ children, index = 0 }: { children: React.ReactNode; index?: number }) {
+function PanelCell({ id, title, children, index = 0, empty = false }: {
+  id: string; title: string; children: React.ReactNode; index?: number; empty?: boolean
+}) {
+  const [collapsed, toggle] = useCollapsed(`intel:${id}`)
+  if (empty) return null
   const delay = Math.min(index * 40, 200)
   return (
     <div
       className="rounded-lg py-3 glass animate-slide-in-up"
       style={{ border: '1px solid var(--glass-border)', animationDelay: `${delay}ms` }}
     >
-      {children}
+      <div
+        {...toggleProps(collapsed, toggle)}
+        className={`flex items-center gap-1.5 px-3 text-[10px] tracking-[0.2em] cursor-pointer select-none ${collapsed ? '' : 'mb-2'}`}
+        style={{ color: '#666' }}
+        data-testid={`intel-toggle-${id}`}
+      >
+        <Chevron collapsed={collapsed} />
+        <span>{title}</span>
+      </div>
+      {!collapsed && <InCellContext.Provider value={true}>{children}</InCellContext.Provider>}
     </div>
   )
 }
@@ -426,33 +444,25 @@ export const IntelligencePanel = memo(function IntelligencePanel({
               </div>
             )}
             <div className="flex flex-col gap-4">
-              <PanelCell><ClocksSection clocks={clocks || []} /></PanelCell>
-              <PanelCell><NewsSection news={news} /></PanelCell>
-              <PanelCell><MarketsSection stocks={stocks} /></PanelCell>
-              <PanelCell><SystemSection info={systemInfo} /></PanelCell>
+              <PanelCell id="clocks" title="🕐 WORLD CLOCKS" empty={!clocks?.length}><ClocksSection clocks={clocks || []} /></PanelCell>
+              <PanelCell id="news" title="📰 WORLD NEWS"><NewsSection news={news} /></PanelCell>
+              <PanelCell id="markets" title="📈 MARKETS"><MarketsSection stocks={stocks} /></PanelCell>
+              <PanelCell id="system" title="🖧 SYSTEM"><SystemSection info={systemInfo} /></PanelCell>
             </div>
             <div className="flex flex-col gap-4">
-              <PanelCell>
+              <PanelCell id="earthquakes" title="🌍 EARTHQUAKES" empty={!earthquakes?.length}>
                 <EarthquakesSection earthquakes={earthquakes || []} />
+              </PanelCell>
+              <PanelCell id="crypto" title="₿ CRYPTO" empty={!crypto?.length}>
                 <CryptoSections crypto={crypto || []} />
-                {(earthquakes || []).length > 0 && (crypto || []).length > 0 && <div className="h-3" />}
               </PanelCell>
-              <PanelCell>
-                <SpaceSection space={space || null} />
-                <WeatherSection weather={weather} />
-              </PanelCell>
-              <PanelCell>
-                <GitHubSection repos={repos} />
-                {repos.length > 0 && cve && cve.length > 0 && <div className="h-3" />}
-                <CveSection cve={cve || []} />
-              </PanelCell>
-              <PanelCell>
-                <CalendarPanel events={calendarEvents || []} authStatus={calendarAuth || ''} onConnect={onCalendarConnect} />
-              </PanelCell>
-              <PanelCell>
-                <EmailPanel messages={emailMessages || []} unread={emailUnread || 0} authStatus={emailAuth || ''} onConnect={onEmailConnect} />
-              </PanelCell>
-              <PanelCell><AgentActivitySection tools={recentTools} /></PanelCell>
+              <PanelCell id="space" title="🛰 SPACE"><SpaceSection space={space || null} /></PanelCell>
+              <PanelCell id="weather" title="🌤 WEATHER"><WeatherSection weather={weather} /></PanelCell>
+              <PanelCell id="github" title="💻 GITHUB"><GitHubSection repos={repos} /></PanelCell>
+              <PanelCell id="security" title="🔐 SECURITY"><CveSection cve={cve || []} /></PanelCell>
+              <CalendarPanel events={calendarEvents || []} authStatus={calendarAuth || ''} onConnect={onCalendarConnect} />
+              <EmailPanel messages={emailMessages || []} unread={emailUnread || 0} authStatus={emailAuth || ''} onConnect={onEmailConnect} />
+              <PanelCell id="agent" title="⚡ AGENT" empty={!recentTools.length}><AgentActivitySection tools={recentTools} /></PanelCell>
             </div>
           </div>
         )}
