@@ -24,8 +24,8 @@ const DEFAULT_METRICS: SystemMetrics = {
   latency: 0,
   contextWindow: 4096,
   tokenUsage: 0,
-  model: 'openrouter/free',
-  provider: 'OpenRouter',
+  model: '-',
+  provider: '-',
 }
 
 const initialState: AppState = {
@@ -37,7 +37,7 @@ const initialState: AppState = {
   voiceOutputEnabled: false,
   wakeWordEnabled: false,
   voiceLanguage: 'en-US',
-  persona: (() => { try { return localStorage.getItem('friday_persona') || 'friday' } catch { return 'friday' } })(),
+  persona: (() => { try { const p = localStorage.getItem('friday_persona'); return p === 'cortana' ? 'ultron' : p || 'friday' } catch { return 'friday' } })(),
   loading: false,
   metrics: DEFAULT_METRICS,
   zen: (() => { try { return (localStorage.getItem('friday_ui_zen') || '1') !== '0' } catch { return true } })(),

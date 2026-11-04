@@ -5,10 +5,10 @@ class TestPersona:
     def test_has_all_personas(self):
         assert "friday" in PERSONAS
         assert "jarvis" in PERSONAS
-        assert "cortana" in PERSONAS
+        assert "ultron" in PERSONAS
 
     def test_persona_keys(self):
-        assert set(PERSONA_KEYS) == {"friday", "jarvis", "cortana"}
+        assert set(PERSONA_KEYS) == {"friday", "jarvis", "ultron"}
 
     def test_each_persona_has_required_fields(self):
         for key, p in PERSONAS.items():
@@ -30,9 +30,9 @@ class TestPersona:
         assert "FRIDAY" in prompt
 
     def test_get_persona_config_valid(self):
-        cfg = get_persona_config("cortana")
-        assert cfg["name"] == "Cortana"
-        assert cfg["tts_pitch"] == 1.05
+        cfg = get_persona_config("ultron")
+        assert cfg["name"] == "Ultron"
+        assert cfg["tts_voice"] == "am_onyx"
 
     def test_get_persona_config_invalid_fallsback(self):
         cfg = get_persona_config("bad_key")

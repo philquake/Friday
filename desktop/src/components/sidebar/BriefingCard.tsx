@@ -1,4 +1,5 @@
 import { memo } from 'react'
+import { Chevron, toggleProps, useCollapsed } from '../common/Collapsible'
 
 interface Briefing {
   summary: string
@@ -14,6 +15,7 @@ interface BriefingCardProps {
 }
 
 export const BriefingCard = memo(function BriefingCard({ briefing, onPlay, voiceOutputEnabled }: BriefingCardProps) {
+  const [collapsed, toggle] = useCollapsed('panel:briefing')
   if (!briefing) return null
 
   return (
@@ -26,21 +28,28 @@ export const BriefingCard = memo(function BriefingCard({ briefing, onPlay, voice
     >
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 text-[11px] font-medium mb-2" style={{ color: '#00a8ff' }}>
+          <div
+            {...toggleProps(collapsed, toggle)}
+            className={`flex items-center gap-2 text-[11px] font-medium cursor-pointer select-none ${collapsed ? '' : 'mb-2'}`}
+            style={{ color: '#00a8ff' }}
+          >
+            <Chevron collapsed={collapsed} />
             <span>☕</span>
             <span>MORNING BRIEFING</span>
           </div>
-          <p className="text-xs leading-relaxed" style={{ color: '#d0d0d0' }}>
-            {briefing.summary}
-          </p>
-          {briefing.yesterday && (
+          {!collapsed && (
+            <p className="text-xs leading-relaxed" style={{ color: '#d0d0d0' }}>
+              {briefing.summary}
+            </p>
+          )}
+          {!collapsed && briefing.yesterday && (
             <div className="mt-2 text-[11px] leading-relaxed" style={{ color: '#8a8a92', borderTop: '1px solid rgba(0,168,255,0.1)', paddingTop: '6px' }}>
               <span style={{ color: '#00a8ff' }}>📖 From yesterday's diary:</span>
               <span className="line-clamp-3 inline"> {briefing.yesterday}</span>
             </div>
           )}
         </div>
-        {voiceOutputEnabled && (
+        {voiceOutputEnabled && !collapsed && (
           <button
             onClick={onPlay}
             className="shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition-all hover:scale-105 active:scale-95"

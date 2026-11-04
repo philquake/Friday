@@ -1,6 +1,7 @@
 import { memo, useRef, useEffect, useMemo } from 'react'
 import * as THREE from 'three'
 import type { OrbState } from '../../types'
+import { orbColor } from '../../core/orbColors'
 import {
   createCoreMaterial,
   createInnerCoreMaterial,
@@ -87,6 +88,9 @@ const STATE_CFG: Record<string, StateConfig> = {
     holoOpacity: 0.02,
   },
 }
+
+/* States without their own motion profile animate like "thinking" */
+const BUSY_STATES = new Set(['reasoning', 'executing', 'searching', 'coding'])
 
 /* ─── Orbiting node paths ─── */
 interface NodePath {
@@ -231,7 +235,7 @@ export function JarvisOrb({ orbState, handPosition, voiceActivity }: { orbState:
       { r: 1.3, t: 0.005, c: C_WHITE, o: 0.1, rx: Math.PI / 5, rz: -Math.PI / 5, sp: 0.15, ax: 'x' },
       { r: 1.45, t: 0.004, c: C_LIGHT, o: 0.07, rx: Math.PI / 6, rz: Math.PI / 3, sp: 0.1, ax: 'z' },
     ]
-    const ringEntries: { mesh: THREE.Mesh; speed: number; axis: string }[] = []
+    const ringEntries: { mesh: THREE.Mesh; speed: number; axis: string; base: THREE.Color }[] = []
     for (const d of ringDefs) {
       const mat = createRingMaterial(d.c, d.o)
       const geo = new THREE.TorusGeometry(d.r, d.t, 16, 96)
@@ -239,7 +243,7 @@ export function JarvisOrb({ orbState, handPosition, voiceActivity }: { orbState:
       mesh.rotation.x = d.rx
       mesh.rotation.z = d.rz
       scene.add(mesh)
-      ringEntries.push({ mesh, speed: d.sp, axis: d.ax })
+      ringEntries.push({ mesh, speed: d.sp, axis: d.ax, base: new THREE.Color(d.c) })
     }
     ringMeshesRef.current = ringEntries
 
@@ -339,6 +343,14 @@ export function JarvisOrb({ orbState, handPosition, voiceActivity }: { orbState:
     }
     document.addEventListener('visibilitychange', onVisibility)
 
+    /* ─── Per-state tint (eased) ─── */
+    const B_DARK = new THREE.Color(C_DARK)
+    const B_MEDIUM = new THREE.Color(C_MEDIUM)
+    const B_LIGHT = new THREE.Color(C_LIGHT)
+    const B_WHITE = new THREE.Color(C_WHITE)
+    const tint = new THREE.Color(orbColor(stateRef.current))
+    const targetColor = new THREE.Color()
+
     /* ─── Animation ─── */
     let time = 0
     let camAngle = 0
@@ -350,9 +362,26 @@ export function JarvisOrb({ orbState, handPosition, voiceActivity }: { orbState:
         return
       }
       time += 0.016
-      const stateName = stateRef.current === 'error' ? 'thinking' : stateRef.current === 'offline' ? 'offline' : voiceRef.current ? 'speaking' : stateRef.current
-      const cfg = STATE_CFG[stateName] || STATE_CFG.idle
+      const colorKey = stateRef.current === 'offline' ? 'offline' : voiceRef.current ? 'speaking' : stateRef.current
+      const stateName = stateRef.current === 'error' ? 'thinking' : colorKey
+      const cfg = STATE_CFG[stateName] || STATE_CFG[BUSY_STATES.has(stateName) ? 'thinking' : 'idle']
       const rot = time * cfg.coreSpeed
+
+      /* Ease the tint toward this state's color, then re-derive every material color from the base palette */
+      tint.lerp(targetColor.set(orbColor(colorKey)), 0.06)
+      coreMat.uniforms.uColorInner.value.copy(B_DARK).lerp(tint, 0.75)
+      coreMat.uniforms.uColorOuter.value.copy(B_MEDIUM).lerp(tint, 0.7)
+      coreMat.uniforms.uEdgeColor.value.copy(B_LIGHT).lerp(tint, 0.7)
+      innerMat.uniforms.uColor.value.copy(B_LIGHT).lerp(tint, 0.75)
+      holoMat.uniforms.uLineColor.value.copy(B_WHITE).lerp(tint, 0.6)
+      shellMat.color.copy(B_MEDIUM).lerp(tint, 0.6)
+      dotMat.color.copy(B_LIGHT).lerp(tint, 0.7)
+      pMat.color.copy(B_WHITE).lerp(tint, 0.5)
+      nMat.color.copy(B_WHITE).lerp(tint, 0.6)
+      spriteMat.color.copy(B_WHITE).lerp(tint, 0.85)
+      for (const entry of ringEntries) {
+        ;(entry.mesh.material as THREE.ShaderMaterial).uniforms.uColor.value.copy(entry.base).lerp(tint, 0.6)
+      }
 
       /* Group rotation */
       group.rotation.x = rot * 0.7

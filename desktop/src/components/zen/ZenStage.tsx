@@ -37,6 +37,7 @@ interface ZenStageProps {
   time?: string
   handPosition?: { x: number; y: number } | null
   voiceActivity?: boolean
+  onToggleFloatingOrb?: () => void
 }
 
 export const ZenStage = memo(function ZenStage({
@@ -70,6 +71,7 @@ export const ZenStage = memo(function ZenStage({
   time = '',
   handPosition = null,
   voiceActivity = false,
+  onToggleFloatingOrb,
 }: ZenStageProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const lastContent = messages[messages.length - 1]?.content
@@ -114,6 +116,17 @@ export const ZenStage = memo(function ZenStage({
             >
               CONTROL
             </span>
+          )}
+          {onToggleFloatingOrb && (
+            <button
+              onClick={onToggleFloatingOrb}
+              className="flex items-center gap-1.5 text-[10px] font-mono tracking-widest px-2.5 py-1 rounded-md transition-all duration-200 hover:bg-white/[.06]"
+              style={{ color: '#606068', border: '1px solid rgba(255,255,255,0.08)' }}
+              title="Float the orb on your desktop (stays on top)"
+              aria-label="Toggle floating orb"
+            >
+              ORB
+            </button>
           )}
           <button
             onClick={() => setMomentOpen(true)}

@@ -23,6 +23,8 @@ google_credentials.json
 *.key
 
 # Environment
+.venv/
+venv/
 .env
 .env.local
 .env.*.local

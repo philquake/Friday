@@ -1,5 +1,6 @@
 import { memo, useState, useEffect } from 'react'
 import type { SystemInfo } from '../../types'
+import { orbColor } from '../../core/orbColors'
 
 interface StatusRibbonProps {
   systemInfo: SystemInfo
@@ -15,6 +16,7 @@ interface StatusRibbonProps {
   ambientActive?: boolean
   onExitAmbient?: () => void
   persona?: string
+  onToggleFloatingOrb?: () => void
 }
 
 const ORB_LABELS: Record<string, string> = {
@@ -33,7 +35,7 @@ const ORB_LABELS: Record<string, string> = {
 export const StatusRibbon = memo(function StatusRibbon({
   systemInfo, latency, orbState, memory, backendOnline, onCommandPalette,
   voiceOutputEnabled, onToggleVoiceOutput, voiceInputStatus, voiceOutputStatus,
-  ambientActive, onExitAmbient, persona,
+  ambientActive, onExitAmbient, persona, onToggleFloatingOrb,
 }: StatusRibbonProps) {
   // Speech recognition auto-restarts constantly (listening <-> idle); debounce the label so it doesn't flicker.
   const rawAmbient = voiceInputStatus === 'listening' ? 'listening' : voiceOutputStatus === 'speaking' ? 'speaking' : 'awaiting'
@@ -96,7 +98,7 @@ export const StatusRibbon = memo(function StatusRibbon({
 
       <span className="w-px h-3 rounded-full shrink-0" style={{ background: 'var(--glass-border)' }} />
 
-      <span className="shrink-0" style={{ color: '#606068' }}>{ORB_LABELS[orbState] ?? orbState.toUpperCase()}</span>
+      <span className="shrink-0" style={{ color: orbColor(orbState), transition: 'color 0.6s' }}>{ORB_LABELS[orbState] ?? orbState.toUpperCase()}</span>
 
       {persona && (
         <span className="shrink-0 text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded" style={{ color: '#00a8ff', background: 'rgba(0,168,255,0.08)', border: '1px solid rgba(0,168,255,0.15)' }}>
@@ -150,6 +152,22 @@ export const StatusRibbon = memo(function StatusRibbon({
             {voiceInputStatus === 'listening' ? 'LISTENING' : 'SPEAKING'}
           </span>
         </span>
+      )}
+
+      {onToggleFloatingOrb && (
+        <button
+          onClick={onToggleFloatingOrb}
+          className="flex items-center gap-1 shrink-0 transition-all hover:bg-white/[.04] px-2 py-0.5 rounded"
+          style={{ color: '#606068' }}
+          title="Float the orb on your desktop (stays on top)"
+          aria-label="Toggle floating orb"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="8" />
+            <circle cx="12" cy="12" r="3" />
+          </svg>
+          <span className="text-[10px]">orb</span>
+        </button>
       )}
 
       <button

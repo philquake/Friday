@@ -85,7 +85,7 @@
 > The 3D orb reacts to your voice. The Intelligence panel streams 10 live data sources. The Holodeck renders your metrics as animated 3D bars. Zen mode turns everything into a monochrome orb + chat. And it all starts with one command.
 
 ```bash
-npm run friday        # → boots API server + frontend together (Windows)
+python main.py --ui   # → boots API server + frontend together
 # or
 docker compose up -d  # → Frontend: http://localhost:5173 · Backend: http://localhost:8080
 ```
@@ -155,7 +155,7 @@ docker compose up -d  # → Frontend: http://localhost:5173 · Backend: http://l
     <td width="50%" valign="top">
       <p align="center"><strong>⚡ Single-Command Start</strong></p>
       <p align="center">
-        <code>python main.py --ui</code> or <code>npm run friday</code> boots API + frontend together and
+        <code>python main.py --ui</code> boots API + frontend together and
         opens your browser. Global <code>Ctrl+Alt+F</code> summons Friday from anywhere.
       </p>
     </td>
@@ -204,14 +204,25 @@ docker compose up -d  # → Frontend: http://localhost:5173 · Backend: http://l
 
 ## ⚡ Quick Start
 
+Install [Ollama](https://ollama.com/download), start it, and download the starter model:
+
+```bash
+ollama pull qwen2.5:1.5b
+```
+
+The default `config/providers.toml.example` uses Ollama at `http://localhost:11434` with this model, so no API key is needed. If you choose another model, update `[ollama] model` to match.
+
 ### 🚀 Single command (recommended)
 
 ```bash
 git clone https://github.com/alimaandev/Friday.git
 cd Friday
+python -m pip install -r requirements.txt
+cd desktop
+npm ci
+cd ..
 cp config/providers.toml.example config/providers.toml
-# Edit config/providers.toml — paste your OpenRouter (or other) API key
-npm run friday        # boots API server + frontend, opens your browser
+python main.py --ui   # boots API server + frontend, opens your browser
 ```
 
 ### 🐳 Docker
@@ -220,7 +231,8 @@ npm run friday        # boots API server + frontend, opens your browser
 git clone https://github.com/alimaandev/Friday.git
 cd Friday
 cp config/providers.toml.example config/providers.toml
-# Edit config/providers.toml — paste your API key
+# In config/providers.toml, set base_url = "http://host.docker.internal:11434"
+# under [ollama] so the backend container can reach Ollama on your host.
 docker compose up -d
 ```
 
@@ -231,7 +243,6 @@ git clone https://github.com/alimaandev/Friday.git
 cd Friday
 pip install -r requirements.txt
 cp config/providers.toml.example config/providers.toml
-# Edit config/providers.toml — paste your API key
 cd desktop && python api_server.py &
 cd .. && npm install && npm run dev
 ```
@@ -278,7 +289,7 @@ cd .. && npm install && npm run dev
           <strong>💬 Streaming Chat + Voice Personality</strong>
         </p>
         <p align="center">
-          Token-by-token responses with plan visualization and tool-call tracking. Three voice personas (JARVIS, FRIDAY, Cortana) with unique TTS rate/pitch and custom system prompts. Switch anytime via settings or ⌘K.
+          Token-by-token responses with plan visualization and tool-call tracking. Three voice personas (JARVIS, FRIDAY, Ultron) with unique TTS rate/pitch and custom system prompts. Switch anytime via settings or ⌘K.
         </p>
       </td>
       <td width="50%" valign="top">
@@ -429,7 +440,7 @@ Friday/
 
 ### 🔊 Voice
 
-Friday speaks with an offline neural voice (Kokoro), one per persona (JARVIS `bf_emma`, FRIDAY `af_heart`, Cortana `af_bella`; change `tts_voice` in `core/persona.py`). The ~90 MB model is **not** part of the repo — download it once into `models/kokoro/` (override with `FRIDAY_KOKORO_DIR`):
+Friday speaks with an offline female neural voice (Kokoro), one per persona (JARVIS `bf_emma`, FRIDAY `af_nova`, Ultron `am_onyx`; set `tts_voice` in `core/persona.py`). One-time setup downloads ~90 MB into `models/kokoro/` (override with `FRIDAY_KOKORO_DIR`):
 
 ```bash
 pip install -r requirements.txt
@@ -444,19 +455,20 @@ All configuration lives in a single file: `config/providers.toml` (copy from `co
 
 | Setting | Default | Description |
 |---------|---------|-------------|
-| `[default] provider` | `"openrouter"` | Active provider — `openrouter`, `openai`, `ollama`, or any OpenAI-compatible API |
+| `[default] provider` | `"ollama"` | Active provider — `ollama`, `openrouter`, `openai`, or any OpenAI-compatible API |
 | Switch at runtime | — | Choose **Claude**, **Ollama** or **OpenRouter** from the command palette, Settings → AI Model, or say *"switch to Claude"*. Saved to `memory_store/active_provider.json` (never rewrites `providers.toml`). Cloud providers need `ANTHROPIC_API_KEY` / `OPENROUTER_API_KEY` in `.env` and are refused in Blackout mode |
 | `[openrouter] api_key` | — | Your OpenRouter key |
 | `[openrouter] model` | `"openrouter/free"` | Model to use (free tier by default) |
 | `[openrouter] fallback_model` | `"meta-llama/llama-3.2-3b-instruct:free"` | Used when the primary model is unavailable |
 | `[openai] base_url` | `"https://api.openai.com/v1"` | Any OpenAI-compatible endpoint |
-| `[ollama] base_url` | `"http://localhost:11434"` | Local Ollama server |
+| `[ollama] base_url` | `"http://localhost:11434"` | Local Ollama server (use `http://host.docker.internal:11434` from Docker) |
+| `[ollama] model` | `"qwen2.5:1.5b"` | Local model; download it with `ollama pull qwen2.5:1.5b` |
 | `temperature` | `0.7` | Response randomness (per provider) |
 | `max_tokens` | `4096` | Max response length (per provider) |
 | `[embeddings] engine` | `"sentence"` | Memory embedding engine |
 
 **Switch providers in three steps:**
-1. Paste the API key in the provider's section
+1. Set provider-specific options (Ollama needs no API key)
 2. Change `[default] provider` to that provider's name
 3. Restart the backend — done
 
@@ -544,7 +556,7 @@ One toggle that blocks all network tools, forces the Ollama provider, and shows 
 Set `[default] provider = "ollama"` in `config/providers.toml`, or just enable **Blackout mode** from Settings.
 
 **Can I customize Friday's personality?**
-Yes — three voice personas (JARVIS, FRIDAY, Cortana) ship built-in, each with its own TTS voice and system prompt. Switch anytime via settings or ⌘K.
+Yes — three voice personas (JARVIS, FRIDAY, Ultron) ship built-in, each with its own TTS voice and system prompt. Switch anytime via settings or ⌘K.
 
 **Can I build my own tools?**
 Yes — the Custom Tool Builder turns plain-English descriptions into working, persisted tools. And the Plugin Marketplace lets you install community plugins in one click.

@@ -200,7 +200,7 @@ export function SettingsPanel({
           <div className="flex items-center justify-between py-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
             <span className="text-sm" style={{ color: '#ccc' }}>Voice Personality</span>
             <div className="flex gap-1">
-              {['friday', 'jarvis', 'cortana'].map(k => (
+              {['friday', 'jarvis', 'ultron'].map(k => (
                 <button
                   key={k}
                   onClick={() => onSetPersona(k)}

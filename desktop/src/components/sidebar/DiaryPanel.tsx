@@ -2,6 +2,7 @@ import { memo, useCallback, useEffect, useState } from 'react'
 import type { DiaryDay } from '../../types'
 import { getDiaryPage, getDiaryRecent, writeNightlyDigest } from '../../core/api'
 import { MarkdownBlock } from '../chat/MarkdownBlock'
+import { Chevron, toggleProps, useCollapsed } from '../common/Collapsible'
 
 interface DiaryPanelProps {
   refreshToken?: number
@@ -55,13 +56,14 @@ export const DiaryPanel = memo(function DiaryPanel({ refreshToken = 0 }: DiaryPa
   }, [loadDays])
 
   const hasEntry = content.length > 0
+  const [collapsed, toggle] = useCollapsed('panel:diary')
 
   return (
     <div className="rounded-xl overflow-hidden" style={{ background: '#0D0D0D', border: '1px solid rgba(255,255,255,0.06)' }}>
-      <div className="px-3 py-2.5 text-xs font-medium tracking-wider flex items-center justify-between" style={{ color: '#888', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-        <span>📖 DIARY {days.length > 0 ? `(${days.length})` : ''}</span>
+      <div {...toggleProps(collapsed, toggle)} className="px-3 py-2.5 text-xs font-medium tracking-wider flex items-center justify-between cursor-pointer select-none" style={{ color: '#888', borderBottom: collapsed ? 'none' : '1px solid rgba(255,255,255,0.04)' }}>
+        <span className="flex items-center gap-1.5"><Chevron collapsed={collapsed} />📖 DIARY {days.length > 0 ? `(${days.length})` : ''}</span>
         <button
-          onClick={handleWriteNightly}
+          onClick={e => { e.stopPropagation(); handleWriteNightly() }}
           disabled={writing}
           className="px-2 py-0.5 rounded text-[10px] transition-all hover:bg-[rgba(212,160,64,0.15)] disabled:opacity-50"
           style={{ color: '#D4A040', border: '1px solid rgba(212,160,64,0.25)' }}
@@ -71,7 +73,7 @@ export const DiaryPanel = memo(function DiaryPanel({ refreshToken = 0 }: DiaryPa
         </button>
       </div>
 
-      {loading ? (
+      {collapsed ? null : loading ? (
         <div className="p-3 space-y-2">
           {[1, 2, 3].map(i => (
             <div key={i} className="h-9 rounded-lg animate-pulse" style={{ background: 'rgba(255,255,255,0.03)' }} />

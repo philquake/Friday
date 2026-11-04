@@ -28,7 +28,7 @@ from core.briefing import BriefingEngine
 from core.diary import get_diary
 from core.logger import get_metrics
 from core.memory import get_memory_manager
-from core.proactive import CalendarMonitor, EmailMonitor, ProactiveMonitor, ScreenMonitor, SystemMonitor
+from core.proactive import CalendarMonitor, EmailMonitor, ProactiveMonitor, SystemMonitor
 from core.registry import discover_plugins
 from core.security import get_approval_registry
 from core.units import convert_temperature, get_temperature_unit, set_temperature_unit
@@ -172,7 +172,7 @@ def get_proactive() -> ProactiveMonitor:
     global _proactive
     if _proactive is None:
         _proactive = ProactiveMonitor()
-        _proactive.add_monitor(ScreenMonitor(interval=3.0))
+        # ScreenMonitor ("Screen changed" alerts) is disabled: it fired on any pixel change, mostly noise.
         _proactive.add_monitor(CalendarMonitor(interval=60.0))
         _proactive.add_monitor(EmailMonitor(interval=120.0))
         _proactive.add_monitor(SystemMonitor(interval=30.0))
@@ -599,8 +599,7 @@ async def system_info():
             "tokens_used": metrics.get("tokens_used", 0),
             "failures": metrics.get("failures", 0),
             "retries": metrics.get("retries", 0),
-            "model": "openrouter/free",
-            "provider": "OpenRouter",
+            **_active_model_info(),
         }
     )
 
@@ -668,7 +667,7 @@ async def weather():
             f"https://api.open-meteo.com/v1/forecast?"
             f"latitude={lat}&longitude={lon}"
             f"&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m"
-            f"&timezone=auto"
+            f"&temperature_unit=fahrenheit&timezone=auto"
         )
         client = get_async_client()
         resp = await client.get(url, timeout=5)
@@ -1633,8 +1632,7 @@ async def _push_system_info():
                     "tokens_used": metrics.get("tokens_used", 0),
                     "failures": metrics.get("failures", 0),
                     "retries": metrics.get("retries", 0),
-                    "model": "openrouter/free",
-                    "provider": "OpenRouter",
+                    **_active_model_info(),
                 },
             )
         except Exception:
@@ -1765,6 +1763,9 @@ if __name__ == "__main__":
     cfg.body_timeout = 300
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
+    from core import ui_commands
+
+    ui_commands.register(loop, _broadcaster.broadcast)
     loop.create_task(_memory_consolidation_loop())
     loop.create_task(_proactive_loop())
     loop.create_task(_push_metrics())

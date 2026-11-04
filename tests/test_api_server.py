@@ -645,6 +645,7 @@ class TestAlerts:
         assert data["alerts"] == []
         assert data["count"] == 0
 
+
 class TestVision:
     async def test_vision_analyze_no_image(self, app, headers):
         async with app.test_client() as client:

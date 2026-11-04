@@ -1,5 +1,5 @@
 [default]
-provider = "openrouter"
+provider = "ollama"
 
 [ollama]
 base_url = "http://localhost:11434"
