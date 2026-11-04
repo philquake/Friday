@@ -35,6 +35,14 @@ export const StatusRibbon = memo(function StatusRibbon({
   voiceOutputEnabled, onToggleVoiceOutput, voiceInputStatus, voiceOutputStatus,
   ambientActive, onExitAmbient, persona,
 }: StatusRibbonProps) {
+  // Speech recognition auto-restarts constantly (listening <-> idle); debounce the label so it doesn't flicker.
+  const rawAmbient = voiceInputStatus === 'listening' ? 'listening' : voiceOutputStatus === 'speaking' ? 'speaking' : 'awaiting'
+  const [ambientState, setAmbientState] = useState(rawAmbient)
+  useEffect(() => {
+    const id = setTimeout(() => setAmbientState(rawAmbient), 600)
+    return () => clearTimeout(id)
+  }, [rawAmbient])
+
   const [time, setTime] = useState('')
   useEffect(() => {
     const update = () => setTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }))
@@ -104,14 +112,14 @@ export const StatusRibbon = memo(function StatusRibbon({
           <span
             className="inline-block w-1.5 h-1.5 rounded-full animate-pulse"
             style={{
-              background: voiceInputStatus === 'listening' ? '#22c55e' : '#00a8ff',
-              boxShadow: voiceInputStatus === 'listening'
+              background: ambientState === 'listening' ? '#22c55e' : '#00a8ff',
+              boxShadow: ambientState === 'listening'
                 ? '0 0 8px rgba(34,197,94,0.5)'
                 : '0 0 8px var(--blue-glow)',
             }}
           />
-          <span className="text-[10px]" style={{ color: voiceInputStatus === 'listening' ? '#22c55e' : 'var(--blue)' }}>
-            {voiceInputStatus === 'listening' ? 'AMBIENT' : voiceOutputStatus === 'speaking' ? 'SPEAKING' : 'AWAITING'}
+          <span className="text-[10px]" style={{ color: ambientState === 'listening' ? '#22c55e' : 'var(--blue)' }}>
+            {ambientState === 'listening' ? 'AMBIENT' : ambientState === 'speaking' ? 'SPEAKING' : 'AWAITING'}
           </span>
           {onExitAmbient && (
             <button

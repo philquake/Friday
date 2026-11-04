@@ -148,9 +148,8 @@ const [pendingApproval, setPendingApproval] = useState<ApprovalRequest | null>(n
   } = useWakeWord(() => {
     cancelAutoRestart()
     resetTranscript()
-    if (!ambientActive) {
-      setAmbientActive(true)
-    }
+    ambientActiveRef.current = true
+    setAmbientActive(true)
     startVoiceInput(voiceLanguage, true)
   })
 
@@ -184,12 +183,14 @@ const [pendingApproval, setPendingApproval] = useState<ApprovalRequest | null>(n
     startVoiceInput(voiceLanguage, true)
   }, [cancelAutoRestart, resetTranscript, startVoiceInput, voiceLanguage])
 
-  // Auto-enter ambient listening when hands-free mode is enabled
+  // Auto-enter ambient listening when hands-free mode is enabled. Deliberately not keyed on
+  // ambientActive: otherwise any exit (✕, push-to-talk, silence) re-enters immediately and flips.
   useEffect(() => {
-    if (handsFree && voiceInputSupported && !ambientActive) {
+    if (handsFree && voiceInputSupported && !ambientActiveRef.current) {
       enterAmbient()
     }
-  }, [handsFree, voiceInputSupported, ambientActive, enterAmbient])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [handsFree, voiceInputSupported])
 
   const handleToggleHandsFree = useCallback(() => {
     const next = !handsFree
@@ -210,6 +211,7 @@ const [pendingApproval, setPendingApproval] = useState<ApprovalRequest | null>(n
       const text = finalTranscript.trim()
       if (text) {
         resetTranscript()
+        ambientTranscriptRef.current = '' // allow the same phrase to be sent again
         handleSendRef.current(text)
       }
     }
@@ -219,7 +221,7 @@ const [pendingApproval, setPendingApproval] = useState<ApprovalRequest | null>(n
   useEffect(() => {
     if (!ambientActiveRef.current) return
     clearAmbientSilence()
-    if (voiceInputStatus === 'idle' && voiceOutputStatus === 'idle') {
+    if (!handsFree && voiceInputStatus === 'idle' && voiceOutputStatus === 'idle') {
       ambientSilenceRef.current = setTimeout(() => {
         if (ambientActiveRef.current) {
           exitAmbient()
@@ -227,7 +229,7 @@ const [pendingApproval, setPendingApproval] = useState<ApprovalRequest | null>(n
       }, 5000)
     }
     return clearAmbientSilence
-  }, [ambientActive, voiceInputStatus, voiceOutputStatus, clearAmbientSilence, exitAmbient])
+  }, [ambientActive, handsFree, voiceInputStatus, voiceOutputStatus, clearAmbientSilence, exitAmbient])
 
   useEffect(() => {
     theme.init()
