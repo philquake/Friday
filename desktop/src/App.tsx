@@ -131,6 +131,7 @@ const [pendingApproval, setPendingApproval] = useState<ApprovalRequest | null>(n
     stopListening: stopVoiceInput,
     cancelAutoRestart,
     resetTranscript,
+    setInputMuted,
   } = useVoiceInput()
 
   const {
@@ -140,6 +141,11 @@ const [pendingApproval, setPendingApproval] = useState<ApprovalRequest | null>(n
     speak: speakResponse,
     stop: stopVoiceOutput,
   } = useVoiceOutput()
+
+  // Don't let the mic hear Friday's own voice (would be transcribed and sent as a new message)
+  useEffect(() => {
+    setInputMuted(voiceOutputStatus === 'speaking')
+  }, [voiceOutputStatus, setInputMuted])
 
   const {
     active: wakeWordActive,

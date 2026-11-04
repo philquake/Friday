@@ -545,3 +545,29 @@ class TestAuth:
         assert resp.status_code == 200
 
 
+class TestStt:
+    async def test_stt_requires_auth(self, app):
+        async with app.test_client() as client:
+            resp = await client.post("/api/v1/stt", data=b"x")
+        assert resp.status_code == 401
+
+    async def test_stt_unavailable_returns_503(self, app, headers, monkeypatch):
+        monkeypatch.setattr("voice.whisper_stt.is_available", lambda: False)
+        async with app.test_client() as client:
+            resp = await client.post("/api/v1/stt", data=b"x", headers=headers)
+        assert resp.status_code == 503
+
+    async def test_stt_empty_body_rejected(self, app, headers, monkeypatch):
+        monkeypatch.setattr("voice.whisper_stt.is_available", lambda: True)
+        async with app.test_client() as client:
+            resp = await client.post("/api/v1/stt", data=b"", headers=headers)
+        assert resp.status_code == 422
+
+    async def test_stt_returns_text(self, app, headers, monkeypatch):
+        monkeypatch.setattr("voice.whisper_stt.is_available", lambda: True)
+        monkeypatch.setattr("voice.whisper_stt.transcribe", lambda wav: "open the pod bay doors")
+        async with app.test_client() as client:
+            resp = await client.post("/api/v1/stt", data=b"RIFFfake", headers=headers)
+            data = await resp.get_json()
+        assert resp.status_code == 200
+        assert data == {"text": "open the pod bay doors"}
