@@ -533,7 +533,7 @@ async def weather():
             f"https://api.open-meteo.com/v1/forecast?"
             f"latitude={lat}&longitude={lon}"
             f"&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m"
-            f"&timezone=auto"
+            f"&temperature_unit=fahrenheit&timezone=auto"
         )
         client = get_async_client()
         resp = await client.get(url, timeout=5)

@@ -49,7 +49,7 @@ describe('ZenStage', () => {
   it('shows ambient widget chips when data is present', () => {
     render(<ZenStage {...baseProps} temperature={22} location="Karachi" />)
     expect(screen.getByText('TEMP')).toBeTruthy()
-    expect(screen.getByText('22°C')).toBeTruthy()
+    expect(screen.getByText('22°F')).toBeTruthy()
   })
 
   it('renders chat messages below the orb when present', () => {

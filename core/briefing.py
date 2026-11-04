@@ -86,7 +86,7 @@ class BriefingEngine:
                 f"latitude={_WEATHER_LAT}&longitude={_WEATHER_LON}"
                 f"&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m"
                 f"&daily=temperature_2m_max,temperature_2m_min,precipitation_sum"
-                f"&timezone=auto"
+                f"&temperature_unit=fahrenheit&timezone=auto"
             )
             resp = await self._client.get(url, timeout=5)
             data = resp.json()
@@ -230,7 +230,7 @@ class BriefingEngine:
         cond = codes.get(w.get("weather_code", 0), "unknown")
         temp = w.get("temperature", "?")
         loc = w.get("location", "your area")
-        parts = [f"It's {temp}°C and {cond} in {loc}."]
+        parts = [f"It's {temp}°F and {cond} in {loc}."]
         if w.get("precip_today"):
             parts.append(f"{w['precip_today']}mm rain expected today.")
         return " ".join(parts)

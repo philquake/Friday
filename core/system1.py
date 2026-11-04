@@ -143,6 +143,7 @@ def _handle_weather(query: str) -> str | None:
             "https://api.open-meteo.com/v1/forecast?"
             "latitude=33.68&longitude=73.05"
             "&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m"
+            "&temperature_unit=fahrenheit"
         )
         req = urllib.request.Request(url, headers={"User-Agent": "Friday/1.0"})
         with urllib.request.urlopen(req, timeout=5) as resp:
@@ -167,7 +168,7 @@ def _handle_weather(query: str) -> str | None:
             95: "Thunderstorm",
         }
         label = _weather_labels.get(code, "Unknown")
-        return f"{temp}°C, {label}. Feels like {feels}°C. Humidity: {humidity}%. Wind: {wind} km/h."
+        return f"{temp}°F, {label}. Feels like {feels}°F. Humidity: {humidity}%. Wind: {wind} km/h."
     except Exception:
         return None
 

@@ -302,7 +302,7 @@ const WeatherSection = memo(function WeatherSection({ weather }: { weather: Weat
       <div className="flex items-center gap-3 px-2 py-2 mx-2 rounded-lg" style={{ background: 'rgba(255,255,255,0.02)' }}>
         <span className="text-2xl">{wc?.icon || '☀️'}</span>
         <div>
-          <div className="text-base font-light" style={{ color: '#e5e5e5' }}>{Math.round(weather.temperature)}°C</div>
+          <div className="text-base font-light" style={{ color: '#e5e5e5' }}>{Math.round(weather.temperature)}°F</div>
           <div className="text-[11px]" style={{ color: '#888' }}>{wc?.label || 'Unknown'}</div>
         </div>
         <div className="ml-auto text-[10px] space-y-0.5 text-right" style={{ color: '#777' }}>
