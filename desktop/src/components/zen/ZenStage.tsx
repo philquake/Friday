@@ -32,6 +32,7 @@ interface ZenStageProps {
   computerReady?: boolean
   blackout?: boolean
   temperature?: number | null
+  temperatureUnit?: 'C' | 'F'
   location?: string
   time?: string
   handPosition?: { x: number; y: number } | null
@@ -64,6 +65,7 @@ export const ZenStage = memo(function ZenStage({
   computerReady = false,
   blackout = false,
   temperature = null,
+  temperatureUnit,
   location = '',
   time = '',
   handPosition = null,
@@ -162,6 +164,7 @@ export const ZenStage = memo(function ZenStage({
         <OrbCore
           orbState={orbState}
           temperature={temperature}
+          temperatureUnit={temperatureUnit}
           location={location}
           time={time}
           memory={metrics.memory}

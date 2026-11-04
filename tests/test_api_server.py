@@ -438,6 +438,57 @@ class TestAutomations:
         assert data["type"] == "notification"
 
 
+class TestUnits:
+    @pytest.fixture(autouse=True)
+    def isolated_units(self, tmp_path, monkeypatch):
+        from core import units
+
+        monkeypatch.setattr(units, "_STORE_PATH", str(tmp_path / "units.json"))
+
+    async def test_default_is_celsius(self, app, headers):
+        async with app.test_client() as client:
+            resp = await client.get("/api/v1/units", headers=headers)
+            data = await resp.get_json()
+        assert data == {"temperature": "c"}
+
+    async def test_put_requires_auth(self, app):
+        async with app.test_client() as client:
+            resp = await client.put("/api/v1/units", json={"temperature": "f"})
+        assert resp.status_code == 401
+
+    async def test_put_rejects_bad_value(self, app, headers):
+        async with app.test_client() as client:
+            resp = await client.put("/api/v1/units", json={"temperature": "kelvin"}, headers=headers)
+        assert resp.status_code == 422
+
+    async def test_weather_uses_saved_unit(self, app, headers, monkeypatch):
+        import sys
+
+        class FakeResp:
+            def json(self):
+                return {"current": {"temperature_2m": 20.0, "apparent_temperature": 0.0, "weather_code": 0}}
+
+        class FakeClient:
+            async def get(self, *args, **kwargs):
+                return FakeResp()
+
+        monkeypatch.setattr(sys.modules["desktop.api_server"], "get_async_client", lambda: FakeClient())
+        async with app.test_client() as client:
+            await client.put("/api/v1/units", json={"temperature": "f"}, headers=headers)
+            resp = await client.get("/api/v1/weather?lat=1&lon=2", headers=headers)
+            data = await resp.get_json()
+        assert data["temperature"] == 68.0
+        assert data["feels_like"] == 32.0
+        assert data["unit"] == "F"
+
+    async def test_put_persists(self, app, headers):
+        async with app.test_client() as client:
+            await client.put("/api/v1/units", json={"temperature": "F"}, headers=headers)
+            resp = await client.get("/api/v1/units", headers=headers)
+            data = await resp.get_json()
+        assert data == {"temperature": "f"}
+
+
 class TestAlerts:
     async def test_alerts_list(self, app, headers):
         async with app.test_client() as client:

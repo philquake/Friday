@@ -16,6 +16,8 @@ interface SettingsPanelProps {
   calendarAuth: string
   emailAuth: string
   onGoogleConnect: () => void
+  temperatureUnit?: 'C' | 'F'
+  onSetTemperatureUnit?: (unit: 'C' | 'F') => void
   persona: string
   onSetPersona: (key: string) => void
 }
@@ -34,6 +36,8 @@ export function SettingsPanel({
   calendarAuth,
   emailAuth,
   onGoogleConnect,
+  temperatureUnit = 'C',
+  onSetTemperatureUnit,
   persona,
   onSetPersona,
 }: SettingsPanelProps) {
@@ -166,6 +170,29 @@ export function SettingsPanel({
             </button>
           </div>
           {toggleRow('Wake Word ("Hey Friday")', wakeWordActive, onToggleWakeWord)}
+          {onSetTemperatureUnit && (
+            <div className="flex items-center justify-between py-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+              <span className="text-sm" style={{ color: '#ccc' }}>Temperature Unit</span>
+              <div className="flex gap-1">
+                {(['C', 'F'] as const).map(u => (
+                  <button
+                    key={u}
+                    onClick={() => onSetTemperatureUnit(u)}
+                    aria-pressed={temperatureUnit === u}
+                    className="px-2.5 py-1 rounded-lg text-[11px] tracking-wider transition-all"
+                    style={{
+                      background: temperatureUnit === u ? 'rgba(0,168,255,0.15)' : 'rgba(255,255,255,0.04)',
+                      border: temperatureUnit === u ? '1px solid rgba(0,168,255,0.3)' : '1px solid rgba(255,255,255,0.06)',
+                      color: temperatureUnit === u ? '#00a8ff' : '#888',
+                    }}
+                  >
+                    °{u}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="flex items-center justify-between py-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
             <span className="text-sm" style={{ color: '#ccc' }}>Voice Personality</span>
             <div className="flex gap-1">

@@ -52,6 +52,11 @@ describe('ZenStage', () => {
     expect(screen.getByText('22°C')).toBeTruthy()
   })
 
+  it('shows the temperature in the chosen unit', () => {
+    render(<ZenStage {...baseProps} temperature={72} temperatureUnit="F" location="Karachi" />)
+    expect(screen.getByText('72°F')).toBeTruthy()
+  })
+
   it('renders chat messages below the orb when present', () => {
     render(<ZenStage {...baseProps} messages={[
       { id: 'u1', role: 'user', content: 'hi' },

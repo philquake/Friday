@@ -28,6 +28,8 @@ import { ZenStage } from './components/zen/ZenStage'
 import { Onboarding } from './components/zen/Onboarding'
 import type { AutopilotRun, AutopilotStepStatus } from './types'
 
+import { setTemperatureUnit } from './core/api'
+
 let msgId = 0
 const nextId = () => `m${++msgId}`
 const LANG_CYCLE = ['en-US', 'hi-IN', 'ur-PK']
@@ -821,6 +823,14 @@ const [pendingApproval, setPendingApproval] = useState<ApprovalRequest | null>(n
     state.setPersona(key)
   }, [])
 
+  const temperatureUnit: 'C' | 'F' = weather?.unit ?? 'C'
+  const handleSetTemperatureUnit = useCallback(async (unit: 'C' | 'F') => {
+    try {
+      await setTemperatureUnit(unit === 'F' ? 'f' : 'c')
+      setWeather(await getWeather())
+    } catch {}
+  }, [])
+
   const handleAutomationToggle = useCallback(async (id: string) => {
     try {
       const updated = await toggleAutomation(id)
@@ -893,6 +903,7 @@ const [pendingApproval, setPendingApproval] = useState<ApprovalRequest | null>(n
     { id: 'toggle-camera', label: 'Gesture control', action: toggleCamera },
     { id: 'toggle-voice-output', label: 'Toggle voice output', action: handleToggleVoiceOutput },
     { id: 'cycle-language', label: `Voice language: ${voiceLanguage}`, action: handleCycleLanguage },
+    { id: 'toggle-temp-unit', label: `Temperature: switch to °${temperatureUnit === 'C' ? 'F' : 'C'}`, action: () => handleSetTemperatureUnit(temperatureUnit === 'C' ? 'F' : 'C') },
 
     { id: 'persona-friday', label: 'Persona: FRIDAY', action: () => handleSetPersona('friday') },
     { id: 'persona-jarvis', label: 'Persona: J.A.R.V.I.S.', action: () => handleSetPersona('jarvis') },
@@ -1043,6 +1054,7 @@ const [pendingApproval, setPendingApproval] = useState<ApprovalRequest | null>(n
             computerReady={computerReady}
             blackout={blackout}
             temperature={weather?.temperature ?? null}
+            temperatureUnit={weather?.unit}
             location={weather?.location ?? ''}
             time={now}
             handPosition={handPosition}
@@ -1238,6 +1250,8 @@ const [pendingApproval, setPendingApproval] = useState<ApprovalRequest | null>(n
           emailAuth={emailAuth}
           onGoogleConnect={handleGoogleConnect}
           persona={persona}
+          temperatureUnit={temperatureUnit}
+          onSetTemperatureUnit={handleSetTemperatureUnit}
           onSetPersona={handleSetPersona}
         />
         </Suspense>

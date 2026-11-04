@@ -4,6 +4,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from core.logger import info
+from core.units import convert_temperature, get_temperature_unit, temperature_symbol
 
 
 @dataclass
@@ -148,8 +149,11 @@ def _handle_weather(query: str) -> str | None:
         with urllib.request.urlopen(req, timeout=5) as resp:
             data = json.loads(resp.read())
         cur = data.get("current", {})
-        temp = cur.get("temperature_2m", "?")
-        feels = cur.get("apparent_temperature", "?")
+        unit = get_temperature_unit()
+        temp = convert_temperature(cur.get("temperature_2m"), unit)
+        feels = convert_temperature(cur.get("apparent_temperature"), unit)
+        temp = "?" if temp is None else temp
+        feels = "?" if feels is None else feels
         humidity = cur.get("relative_humidity_2m", "?")
         wind = cur.get("wind_speed_10m", "?")
         code = cur.get("weather_code", 0)
@@ -167,7 +171,8 @@ def _handle_weather(query: str) -> str | None:
             95: "Thunderstorm",
         }
         label = _weather_labels.get(code, "Unknown")
-        return f"{temp}°C, {label}. Feels like {feels}°C. Humidity: {humidity}%. Wind: {wind} km/h."
+        sym = temperature_symbol(unit)
+        return f"{temp}{sym}, {label}. Feels like {feels}{sym}. Humidity: {humidity}%. Wind: {wind} km/h."
     except Exception:
         return None
 

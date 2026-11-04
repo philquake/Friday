@@ -31,6 +31,7 @@ from core.memory import get_memory_manager
 from core.proactive import CalendarMonitor, EmailMonitor, ProactiveMonitor, ScreenMonitor, SystemMonitor
 from core.registry import discover_plugins
 from core.security import get_approval_registry
+from core.units import convert_temperature, get_temperature_unit, set_temperature_unit
 from core.vision import get_vision_engine
 
 # ─── API Version Prefix ──────────────────────────────────────────
@@ -539,10 +540,12 @@ async def weather():
         resp = await client.get(url, timeout=5)
         data = resp.json()
         cur = data.get("current", {})
+        unit = get_temperature_unit()
         return jsonify(
             {
-                "temperature": cur.get("temperature_2m"),
-                "feels_like": cur.get("apparent_temperature"),
+                "temperature": convert_temperature(cur.get("temperature_2m"), unit),
+                "feels_like": convert_temperature(cur.get("apparent_temperature"), unit),
+                "unit": unit.upper(),
                 "humidity": cur.get("relative_humidity_2m"),
                 "wind_speed": cur.get("wind_speed_10m"),
                 "weather_code": cur.get("weather_code", 0),
@@ -551,6 +554,24 @@ async def weather():
         )
     except Exception as e:
         return jsonify({"error": str(e)}), 502
+
+
+# ─── Display units ───────────────────────────────────────────────
+@app.route(f"{API_PREFIX}/units", methods=["GET"])
+@require_auth
+async def get_units():
+    return jsonify({"temperature": get_temperature_unit()})
+
+
+@app.route(f"{API_PREFIX}/units", methods=["PUT"])
+@require_auth
+async def put_units():
+    data = await request.get_json(silent=True) or {}
+    try:
+        unit = set_temperature_unit(data.get("temperature", ""))
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 422
+    return jsonify({"temperature": unit})
 
 
 # ─── Stocks ─────────────────────────────────────────────────────
