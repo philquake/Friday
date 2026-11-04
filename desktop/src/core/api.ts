@@ -166,6 +166,20 @@ export function streamAutopilot(
 
 /* ─── Typed endpoint helpers ─── */
 
+/* ─── Offline STT (Whisper) ─── */
+export async function transcribeAudio(wav: Blob): Promise<string> {
+  const res = await fetch(`${API_BASE}/stt`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'audio/wav', ...authHeaders() },
+    body: wav,
+  })
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}))
+    throw new Error(body.error || `STT failed (${res.status})`)
+  }
+  return ((await res.json()).text || '').trim()
+}
+
 export async function checkHealth(): Promise<{ status: string; sessions: number }> {
   return fetchApi('/health')
 }

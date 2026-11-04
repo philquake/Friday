@@ -378,6 +378,39 @@ async def autopilot():
     return Response(generate(), mimetype="text/event-stream")
 
 
+# ─── Speech-to-text (offline Whisper) ────────────────────────────
+_MAX_STT_BYTES = 5_000_000  # ~150 s of 16 kHz 16-bit mono
+
+
+@app.route(f"{API_PREFIX}/stt/status", methods=["GET"])
+@require_auth
+async def stt_status():
+    from voice import whisper_stt
+
+    return jsonify({"available": whisper_stt.is_available()})
+
+
+@app.route(f"{API_PREFIX}/stt", methods=["POST"])
+@require_auth
+async def stt():
+    from voice import whisper_stt
+
+    if not whisper_stt.is_available():
+        return jsonify({"error": "Whisper STT not available"}), 503
+    body = await request.get_data()
+    if not body:
+        return jsonify({"error": "audio body is empty"}), 422
+    if len(body) > _MAX_STT_BYTES:
+        return jsonify({"error": "audio too large"}), 413
+    try:
+        text = await asyncio.to_thread(whisper_stt.transcribe, body)
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 422
+    except Exception as e:
+        return jsonify({"error": f"STT failed: {e}"}), 500
+    return jsonify({"text": text})
+
+
 # ─── Sessions ────────────────────────────────────────────────────
 @app.route(f"{API_PREFIX}/sessions", methods=["GET"])
 @require_auth
