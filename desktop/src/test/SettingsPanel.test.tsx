@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, fireEvent } from '@testing-library/react'
 import { SettingsPanel } from '../components/settings/SettingsPanel'
 
 vi.mock('../core/api', () => ({
@@ -55,5 +55,13 @@ describe('SettingsPanel', () => {
   it('renders blackout privacy toggle', async () => {
     render(<SettingsPanel {...baseProps} />)
     expect(screen.getByText(/Blackout Mode/)).toBeTruthy()
+  })
+
+  it('lets the user pick the temperature unit', () => {
+    const onSetTemperatureUnit = vi.fn()
+    render(<SettingsPanel {...baseProps} temperatureUnit="C" onSetTemperatureUnit={onSetTemperatureUnit} />)
+    expect(screen.getByText('°C').getAttribute('aria-pressed')).toBe('true')
+    fireEvent.click(screen.getByText('°F'))
+    expect(onSetTemperatureUnit).toHaveBeenCalledWith('F')
   })
 })

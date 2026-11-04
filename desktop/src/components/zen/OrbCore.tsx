@@ -33,6 +33,7 @@ interface OrbCoreProps {
   handPosition?: { x: number; y: number } | null
   voiceActivity?: boolean
   temperature?: number | null
+  temperatureUnit?: 'C' | 'F'
   location?: string
   memory?: number
   model?: string
@@ -45,6 +46,7 @@ export const OrbCore = memo(function OrbCore({
   handPosition = null,
   voiceActivity = false,
   temperature = null,
+  temperatureUnit = 'C',
   location = '',
   memory = 0,
   model = '',
@@ -55,7 +57,7 @@ export const OrbCore = memo(function OrbCore({
 
   const chips: AmbientChip[] = [
     temperature != null
-      ? { id: 'temp', label: 'TEMP', value: `${Math.round(temperature)}°C`, position: { top: '6%', left: '12%' }, delay: 0 }
+      ? { id: 'temp', label: 'TEMP', value: `${Math.round(temperature)}°${temperatureUnit}`, position: { top: '6%', left: '12%' }, delay: 0 }
       : null,
     time ? { id: 'time', label: 'TIME', value: time, position: { top: '18%', left: '84%' }, delay: 0.8 } : null,
     model ? { id: 'model', label: 'MODEL', value: model, position: { top: '72%', left: '10%' }, delay: 1.6 } : null,

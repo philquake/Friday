@@ -235,6 +235,15 @@ export async function getNews(): Promise<{ articles: any[] }> {
   return fetchApi('/news')
 }
 
+/* ─── Display units ─── */
+export async function setTemperatureUnit(unit: 'c' | 'f'): Promise<{ temperature: 'c' | 'f' }> {
+  return fetchApi('/units', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ temperature: unit }),
+  })
+}
+
 export async function getWeather(): Promise<any> {
   return fetchApi('/weather')
 }

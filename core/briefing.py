@@ -9,6 +9,8 @@ from typing import Any
 
 import httpx
 
+from core.units import convert_temperature, get_temperature_unit, temperature_symbol
+
 __all__ = ["Briefing", "BriefingEngine"]
 
 
@@ -92,14 +94,20 @@ class BriefingEngine:
             data = resp.json()
             cur = data.get("current", {})
             daily = data.get("daily", {})
+            unit = get_temperature_unit()
             return {
-                "temperature": cur.get("temperature_2m"),
-                "feels_like": cur.get("apparent_temperature"),
+                "temperature": convert_temperature(cur.get("temperature_2m"), unit),
+                "feels_like": convert_temperature(cur.get("apparent_temperature"), unit),
+                "unit": unit.upper(),
                 "humidity": cur.get("relative_humidity_2m"),
                 "weather_code": cur.get("weather_code", 0),
                 "location": _WEATHER_LOCATION,
-                "high_today": daily.get("temperature_2m_max", [None])[0] if daily.get("temperature_2m_max") else None,
-                "low_today": daily.get("temperature_2m_min", [None])[0] if daily.get("temperature_2m_min") else None,
+                "high_today": convert_temperature(daily["temperature_2m_max"][0], unit)
+                if daily.get("temperature_2m_max")
+                else None,
+                "low_today": convert_temperature(daily["temperature_2m_min"][0], unit)
+                if daily.get("temperature_2m_min")
+                else None,
                 "precip_today": daily.get("precipitation_sum", [None])[0] if daily.get("precipitation_sum") else None,
             }
         except Exception:
@@ -230,7 +238,7 @@ class BriefingEngine:
         cond = codes.get(w.get("weather_code", 0), "unknown")
         temp = w.get("temperature", "?")
         loc = w.get("location", "your area")
-        parts = [f"It's {temp}°C and {cond} in {loc}."]
+        parts = [f"It's {temp}{temperature_symbol(w.get('unit', 'C').lower())} and {cond} in {loc}."]
         if w.get("precip_today"):
             parts.append(f"{w['precip_today']}mm rain expected today.")
         return " ".join(parts)

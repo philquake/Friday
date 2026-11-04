@@ -45,6 +45,7 @@ export interface NewsItem {
 
 export interface WeatherData {
   temperature: number
+  unit?: 'C' | 'F'
   feels_like: number
   humidity: number
   wind_speed: number
