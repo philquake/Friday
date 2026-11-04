@@ -427,6 +427,17 @@ Friday/
 └── tests/                 # 270+ pytest tests · desktop/src/test/ (107 vitest)
 ```
 
+### 🔊 Voice
+
+Friday speaks with an offline neural voice (Kokoro), one per persona (JARVIS `bf_emma`, FRIDAY `af_heart`, Cortana `af_bella`; change `tts_voice` in `core/persona.py`). The ~90 MB model is **not** part of the repo — download it once into `models/kokoro/` (override with `FRIDAY_KOKORO_DIR`):
+
+```bash
+pip install -r requirements.txt
+python -c "from voice import kokoro_tts; kokoro_tts.ensure_model()"
+```
+
+Without the model files, Friday falls back to the system/browser voice.
+
 ### ⚙️ Configuration
 
 All configuration lives in a single file: `config/providers.toml` (copy from `config/providers.toml.example`).

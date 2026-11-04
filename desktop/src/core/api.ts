@@ -17,6 +17,30 @@ function authHeaders(): Record<string, string> {
   return key ? { 'X-API-Key': key } : {}
 }
 
+/* ─── Offline TTS (Kokoro) ─── */
+export async function getTtsAvailable(): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_BASE}/tts/status`, { headers: authHeaders() })
+    if (!res.ok) return false
+    return !!(await res.json()).available
+  } catch {
+    return false
+  }
+}
+
+export async function fetchTtsAudio(text: string, persona?: string): Promise<Blob | null> {
+  try {
+    const res = await fetch(`${API_BASE}/tts`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ text, persona }),
+    })
+    return res.ok ? await res.blob() : null
+  } catch {
+    return null
+  }
+}
+
 export interface ApiError {
   status: number
   message: string

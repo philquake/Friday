@@ -52,6 +52,51 @@ class TestHealth:
         assert "sessions" in data
 
 
+class TestTts:
+    async def test_tts_requires_auth(self, app):
+        async with app.test_client() as client:
+            resp = await client.post("/api/v1/tts", json={"text": "hi"})
+        assert resp.status_code == 401
+
+    async def test_tts_empty_text_rejected(self, app, headers):
+        async with app.test_client() as client:
+            resp = await client.post("/api/v1/tts", json={"text": "  "}, headers=headers)
+        assert resp.status_code == 422
+
+    async def test_tts_long_text_rejected(self, app, headers):
+        async with app.test_client() as client:
+            resp = await client.post("/api/v1/tts", json={"text": "x" * 2001}, headers=headers)
+        assert resp.status_code == 422
+
+    async def test_tts_unavailable_returns_503(self, app, headers, monkeypatch):
+        monkeypatch.setattr("voice.kokoro_tts.is_available", lambda: False)
+        async with app.test_client() as client:
+            resp = await client.post("/api/v1/tts", json={"text": "hello"}, headers=headers)
+            status = await client.get("/api/v1/tts/status", headers=headers)
+            data = await status.get_json()
+        assert resp.status_code == 503
+        assert data["available"] is False
+
+    async def test_tts_returns_wav_with_persona_voice(self, app, headers, monkeypatch):
+        calls = []
+
+        def fake_synth(text, voice, speed):
+            calls.append((voice, speed))
+            return b"RIFFfake"
+
+        monkeypatch.setattr("voice.kokoro_tts.is_available", lambda: True)
+        monkeypatch.setattr("voice.kokoro_tts.synthesize", fake_synth)
+        async with app.test_client() as client:
+            resp = await client.post("/api/v1/tts", json={"text": "hello", "persona": "jarvis"}, headers=headers)
+            body = await resp.get_data()
+        assert resp.status_code == 200
+        assert resp.mimetype == "audio/wav"
+        assert body == b"RIFFfake"
+        assert calls == [("bf_emma", 0.9)]
+
+
+
+
 class TestChat:
     async def test_chat_requires_message(self, app, headers):
         async with app.test_client() as client:

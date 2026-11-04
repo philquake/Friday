@@ -18,6 +18,7 @@ class TestPersona:
             assert "prompt" in p
             assert "tts_rate" in p
             assert "tts_pitch" in p
+            assert p["tts_voice"]
 
     def test_get_persona_prompt_valid(self):
         prompt = get_persona_prompt("jarvis")

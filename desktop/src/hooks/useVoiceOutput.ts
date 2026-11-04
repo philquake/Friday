@@ -1,10 +1,12 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
+import { fetchTtsAudio, getTtsAvailable } from '../core/api'
 
 export type VoiceOutputStatus = 'idle' | 'speaking' | 'paused'
 
 export interface SpeakOptions {
   rate?: number
   pitch?: number
+  persona?: string
 }
 
 interface UseVoiceOutputReturn {
@@ -22,6 +24,12 @@ interface UseVoiceOutputReturn {
 }
 
 const VOICE_STORAGE_KEY = 'friday_tts_voice_uri'
+const FEMALE_VOICE_RE = /aria|jenny|zira|samantha|hazel|susan|female/i
+
+export function pickDefaultVoice(voices: SpeechSynthesisVoice[]): SpeechSynthesisVoice | undefined {
+  const en = voices.filter(vo => vo.lang.startsWith('en'))
+  return en.find(vo => FEMALE_VOICE_RE.test(vo.name)) || en[0] || voices[0]
+}
 
 export function useVoiceOutput(): UseVoiceOutputReturn {
   const [enabled, setEnabled] = useState(() => {
@@ -33,6 +41,9 @@ export function useVoiceOutput(): UseVoiceOutputReturn {
   const [selectedVoice, setSelectedVoiceState] = useState<SpeechSynthesisVoice | null>(null)
   const selectedVoiceRef = useRef<SpeechSynthesisVoice | null>(null)
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null)
+  const audioRef = useRef<HTMLAudioElement | null>(null)
+  const serverTtsRef = useRef(false)
+  const generationRef = useRef(0)
   const speakQueueRef = useRef<{ text: string; options?: SpeakOptions }[]>([])
   const speakingRef = useRef(false)
   const synthRef = useRef<SpeechSynthesis | null>(null)
@@ -42,36 +53,60 @@ export function useVoiceOutput(): UseVoiceOutputReturn {
 
   const processQueue = useCallback(() => {
     if (speakingRef.current || speakQueueRef.current.length === 0) return
-    const synth = synthRef.current
-    if (!synth) return
 
     const item = speakQueueRef.current.shift()!
     speakingRef.current = true
+    const generation = generationRef.current
 
-    const utterance = new SpeechSynthesisUtterance(item.text)
-    if (selectedVoiceRef.current) utterance.voice = selectedVoiceRef.current
-    utterance.rate = item.options?.rate ?? 1
-    utterance.pitch = item.options?.pitch ?? 1
-    utterance.volume = 1
-
-    utterance.onstart = () => setStatus('speaking')
-    utterance.onend = () => {
+    const next = () => {
+      if (generation !== generationRef.current) return
       speakingRef.current = false
-      if (speakQueueRef.current.length > 0) {
-        processQueue()
-      } else {
+      if (speakQueueRef.current.length > 0) processQueue()
+      else setStatus('idle')
+    }
+
+    const speakInBrowser = () => {
+      const synth = synthRef.current
+      if (!synth) return next()
+      const utterance = new SpeechSynthesisUtterance(item.text)
+      if (selectedVoiceRef.current) utterance.voice = selectedVoiceRef.current
+      utterance.rate = item.options?.rate ?? 1
+      utterance.pitch = item.options?.pitch ?? 1
+      utterance.volume = 1
+      utterance.onstart = () => setStatus('speaking')
+      utterance.onend = next
+      utterance.onerror = () => {
+        speakingRef.current = false
         setStatus('idle')
       }
+      utterance.onpause = () => setStatus('paused')
+      utterance.onresume = () => setStatus('speaking')
+      utteranceRef.current = utterance
+      synth.speak(utterance)
     }
-    utterance.onerror = () => {
-      speakingRef.current = false
-      setStatus('idle')
-    }
-    utterance.onpause = () => setStatus('paused')
-    utterance.onresume = () => setStatus('speaking')
 
-    utteranceRef.current = utterance
-    synth.speak(utterance)
+    if (!serverTtsRef.current) return speakInBrowser()
+
+    fetchTtsAudio(item.text, item.options?.persona).then(blob => {
+      if (generation !== generationRef.current) return
+      if (!blob) {
+        serverTtsRef.current = false // server voice unavailable: use browser voice from now on
+        return speakInBrowser()
+      }
+      const url = URL.createObjectURL(blob)
+      const audio = new Audio(url)
+      audioRef.current = audio
+      const done = () => {
+        URL.revokeObjectURL(url)
+        if (audioRef.current === audio) audioRef.current = null
+        next()
+      }
+      audio.onplay = () => setStatus('speaking')
+      audio.onpause = () => { if (!audio.ended && audioRef.current === audio) setStatus('paused') }
+      audio.onended = done
+      audio.onerror = done
+      audio.play().catch(done)
+    })
   }, [])
 
   const speak = useCallback((text: string, options?: SpeakOptions) => {
@@ -81,21 +116,30 @@ export function useVoiceOutput(): UseVoiceOutputReturn {
   }, [isSupported, enabled, processQueue])
 
   const stop = useCallback(() => {
+    generationRef.current++
     const synth = synthRef.current
     if (synth) synth.cancel()
+    const audio = audioRef.current
+    if (audio) {
+      audioRef.current = null
+      audio.onpause = null
+      audio.onended = null
+      audio.onerror = null
+      audio.pause()
+    }
     speakQueueRef.current = []
     speakingRef.current = false
     setStatus('idle')
   }, [])
 
   const pause = useCallback(() => {
-    const synth = synthRef.current
-    if (synth) synth.pause()
+    if (audioRef.current) audioRef.current.pause()
+    else synthRef.current?.pause()
   }, [])
 
   const resume = useCallback(() => {
-    const synth = synthRef.current
-    if (synth) synth.resume()
+    if (audioRef.current) audioRef.current.play().catch(() => {})
+    else synthRef.current?.resume()
   }, [])
 
   const setVoice = useCallback((voice: SpeechSynthesisVoice) => {
@@ -107,6 +151,12 @@ export function useVoiceOutput(): UseVoiceOutputReturn {
   const setEnabledWrapped = useCallback((v: boolean) => {
     setEnabled(v)
     try { localStorage.setItem('friday_voice_output_enabled', String(v)) } catch {}
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    getTtsAvailable().then(ok => { if (!cancelled) serverTtsRef.current = ok })
+    return () => { cancelled = true }
   }, [])
 
   useEffect(() => {
@@ -128,8 +178,7 @@ export function useVoiceOutput(): UseVoiceOutputReturn {
           }
         }
         if (!selectedVoiceRef.current) {
-          const en = v.find(vo => vo.lang.startsWith('en'))
-          const fallback = en || v[0]
+          const fallback = pickDefaultVoice(v)!
           selectedVoiceRef.current = fallback
           setSelectedVoiceState(fallback)
         }
