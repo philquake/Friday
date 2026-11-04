@@ -12,6 +12,12 @@ def _ensure_provider():
     return _provider
 
 
+def reset_provider() -> None:
+    """Drop the cached provider so the next chat() call builds the currently selected one."""
+    global _provider
+    _provider = None
+
+
 def chat(
     messages: list[dict],
     tools: list[dict] | None = None,

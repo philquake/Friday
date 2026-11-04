@@ -18,11 +18,14 @@ import { AlertToast } from './components/chat/AlertToast'
 import { ApprovalDialog } from './components/chat/ApprovalDialog'
 import { ToastContainer } from './components/common/Toast'
 import { toast } from './core/ToastStore'
+import { ConsoleDrawer } from './components/common/ConsoleDrawer'
+import { ORB_NEEDS_APP_MSG, publishOrb, runOrbAction, toggleFloatingOrb } from './core/orbChannel'
 const IntelligencePanel = lazy(() => import('./components/sidebar/IntelligencePanel').then(m => ({ default: m.IntelligencePanel })))
 const CommandPalette = lazy(() => import('./components/command/CommandPalette').then(m => ({ default: m.CommandPalette })))
 const SettingsPanel = lazy(() => import('./components/settings/SettingsPanel').then(m => ({ default: m.SettingsPanel })))
-import { streamChat, checkHealth, getSessions, createSession, deleteSession, getOutputDir, setOutputDir, getGoogleAuth, getNews, getWeather, getStocks, getGithubTrending, getEarthquakes, getCrypto, getSpace, getCve, getScreen, getMemory, deleteMemory, getCalendarEvents, getEmailInbox, getEmailUnread, connectEventSource, getAutomations, toggleAutomation, deleteAutomation, triggerAutomation, analyzeVisionImage, getVisionScreen, resolveApproval, streamAutopilot, getKnowledgeContinuity, getComputerStatus, getPrivacyStatus } from './core/api'
-import type { ServerEvent } from './core/api'
+import { streamChat, checkHealth, getSessions, createSession, deleteSession, getOutputDir, setOutputDir, getGoogleAuth, getNews, getWeather, getStocks, getGithubTrending, getEarthquakes, getCrypto, getSpace, getCve, getScreen, getMemory, deleteMemory, getCalendarEvents, getEmailInbox, getEmailUnread, connectEventSource, getAutomations, toggleAutomation, deleteAutomation, triggerAutomation, analyzeVisionImage, getVisionScreen, resolveApproval, streamAutopilot, getKnowledgeContinuity, getComputerStatus, getPrivacyStatus, getProvider, setProvider } from './core/api'
+import type { ServerEvent, ProviderStatus } from './core/api'
+import { parseProviderCommand } from './core/voiceCommands'
 import { BrainView } from './components/autopilot/BrainView'
 import { ZenStage } from './components/zen/ZenStage'
 import { Onboarding } from './components/zen/Onboarding'
@@ -34,7 +37,7 @@ const LANG_CYCLE = ['en-US', 'hi-IN', 'ur-PK']
 const PERSONA_TTS: Record<string, { rate: number; pitch: number }> = {
   jarvis: { rate: 0.9, pitch: 1.0 },
   friday: { rate: 1.0, pitch: 1.1 },
-  cortana: { rate: 0.95, pitch: 1.05 },
+  ultron: { rate: 0.9, pitch: 0.8 },
 }
 
 function showNativeNotification(title: string, body: string) {
@@ -131,6 +134,8 @@ const [pendingApproval, setPendingApproval] = useState<ApprovalRequest | null>(n
     stopListening: stopVoiceInput,
     cancelAutoRestart,
     resetTranscript,
+    setInputMuted,
+    error: voiceInputError,
   } = useVoiceInput()
 
   const {
@@ -141,17 +146,25 @@ const [pendingApproval, setPendingApproval] = useState<ApprovalRequest | null>(n
     stop: stopVoiceOutput,
   } = useVoiceOutput()
 
+  // Don't let the mic hear Friday's own voice (would be transcribed and sent as a new message)
+  useEffect(() => {
+    setInputMuted(voiceOutputStatus === 'speaking')
+  }, [voiceOutputStatus, setInputMuted])
+
   const {
     active: wakeWordActive,
     start: startWakeWord,
     stop: stopWakeWord,
-  } = useWakeWord(() => {
+    setPaused: setWakePaused,
+    error: wakeWordError,
+  } = useWakeWord((command) => {
     cancelAutoRestart()
     resetTranscript()
-    if (!ambientActive) {
-      setAmbientActive(true)
-    }
+    ambientActiveRef.current = true
+    setAmbientActive(true)
     startVoiceInput(voiceLanguage, true)
+    // "Hey Friday, what's the weather?" — act on what followed the phrase straight away
+    if (command && command.split(' ').length >= 2) handleSendRef.current(command)
   })
 
   // ─── Ambient Voice Mode ────────────────────────────────────────
@@ -184,12 +197,14 @@ const [pendingApproval, setPendingApproval] = useState<ApprovalRequest | null>(n
     startVoiceInput(voiceLanguage, true)
   }, [cancelAutoRestart, resetTranscript, startVoiceInput, voiceLanguage])
 
-  // Auto-enter ambient listening when hands-free mode is enabled
+  // Auto-enter ambient listening when hands-free mode is enabled. Deliberately not keyed on
+  // ambientActive: otherwise any exit (✕, push-to-talk, silence) re-enters immediately and flips.
   useEffect(() => {
-    if (handsFree && voiceInputSupported && !ambientActive) {
+    if (handsFree && voiceInputSupported && !ambientActiveRef.current) {
       enterAmbient()
     }
-  }, [handsFree, voiceInputSupported, ambientActive, enterAmbient])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [handsFree, voiceInputSupported])
 
   const handleToggleHandsFree = useCallback(() => {
     const next = !handsFree
@@ -201,6 +216,19 @@ const [pendingApproval, setPendingApproval] = useState<ApprovalRequest | null>(n
     }
   }, [handsFree, enterAmbient, exitAmbient])
 
+  // Don't listen for the wake phrase while a conversation is running or Friday is talking
+  useEffect(() => {
+    setWakePaused(ambientActive || voiceOutputStatus === 'speaking')
+  }, [ambientActive, voiceOutputStatus, setWakePaused])
+
+  // Surface voice problems instead of failing silently (details also appear in the console drawer)
+  useEffect(() => {
+    if (voiceInputError) toast('warning', `Voice input: ${voiceInputError}`)
+  }, [voiceInputError])
+  useEffect(() => {
+    if (wakeWordError) toast('warning', `Wake word: ${wakeWordError}`)
+  }, [wakeWordError])
+
   // Auto-send transcript in ambient mode when recognition goes idle
   useEffect(() => {
     if (!ambientActiveRef.current) return
@@ -210,6 +238,7 @@ const [pendingApproval, setPendingApproval] = useState<ApprovalRequest | null>(n
       const text = finalTranscript.trim()
       if (text) {
         resetTranscript()
+        ambientTranscriptRef.current = '' // allow the same phrase to be sent again
         handleSendRef.current(text)
       }
     }
@@ -219,7 +248,7 @@ const [pendingApproval, setPendingApproval] = useState<ApprovalRequest | null>(n
   useEffect(() => {
     if (!ambientActiveRef.current) return
     clearAmbientSilence()
-    if (voiceInputStatus === 'idle' && voiceOutputStatus === 'idle') {
+    if (!handsFree && voiceInputStatus === 'idle' && voiceOutputStatus === 'idle') {
       ambientSilenceRef.current = setTimeout(() => {
         if (ambientActiveRef.current) {
           exitAmbient()
@@ -227,7 +256,7 @@ const [pendingApproval, setPendingApproval] = useState<ApprovalRequest | null>(n
       }, 5000)
     }
     return clearAmbientSilence
-  }, [ambientActive, voiceInputStatus, voiceOutputStatus, clearAmbientSilence, exitAmbient])
+  }, [ambientActive, handsFree, voiceInputStatus, voiceOutputStatus, clearAmbientSilence, exitAmbient])
 
   useEffect(() => {
     theme.init()
@@ -248,6 +277,12 @@ const [pendingApproval, setPendingApproval] = useState<ApprovalRequest | null>(n
     return () => window.removeEventListener('keydown', handleKey)
   }, [])
 
+  // ─── Mirror orb state to the floating orb window ───
+  const orbVoiceActive = voiceInputStatus === 'listening' || voiceOutputStatus === 'speaking'
+  useEffect(() => {
+    publishOrb({ orbState: orb, voiceActivity: orbVoiceActive })
+  }, [orb, orbVoiceActive])
+
   // ─── Single SSE connection replaces all polling ───
   useEffect(() => {
     let cancelled = false
@@ -263,6 +298,7 @@ const [pendingApproval, setPendingApproval] = useState<ApprovalRequest | null>(n
           break
         case 'system_info':
           setSystemInfo(prev => ({ ...prev, ...ev.data }))
+          if (ev.data.model) state.setMetrics({ model: ev.data.model, provider: ev.data.provider || '' })
           break
         case 'memory':
           setMemoryData(prev => prev ? { ...prev, ...ev.data } : null)
@@ -300,6 +336,11 @@ const [pendingApproval, setPendingApproval] = useState<ApprovalRequest | null>(n
           break
         case 'vision':
           setVisionScreenResult(ev.data)
+          break
+        case 'ui_command':
+          if (ev.data?.target === 'orb' && !runOrbAction(ev.data.action)) {
+            toast('info', ORB_NEEDS_APP_MSG)
+          }
           break
       }
     }
@@ -427,7 +468,7 @@ const [pendingApproval, setPendingApproval] = useState<ApprovalRequest | null>(n
       if (content !== lastMsgRef.current && content.length > 10) {
         lastMsgRef.current = content
         const tts = PERSONA_TTS[persona]
-        speakResponse(content, tts)
+        speakResponse(content, { ...tts, persona })
       }
     }
   }, [active.messages, voiceOutputEnabled, speakResponse, persona])
@@ -533,11 +574,46 @@ const [pendingApproval, setPendingApproval] = useState<ApprovalRequest | null>(n
     ? active.messages.filter(m => m.content.toLowerCase().includes(searchQuery.toLowerCase()))
     : active.messages
 
+  // ─── LLM provider switching (Claude / Ollama / OpenRouter) ─────
+  const [providerStatus, setProviderStatus] = useState<ProviderStatus | null>(null)
+  useEffect(() => {
+    if (backendOnline) getProvider().then(setProviderStatus).catch(() => {})
+  }, [backendOnline])
+
+  // Keep the model/provider labels in step with the active provider (initial load and every switch).
+  useEffect(() => {
+    const info = providerStatus?.providers.find(p => p.name === providerStatus.active)
+    if (info) state.setMetrics({ model: info.model || '-', provider: info.label })
+  }, [providerStatus])
+
+  // Works from the command palette, settings, typed text and voice. `userText` is the spoken/typed command, if any.
+  const handleSwitchProvider = useCallback(async (name: string, userText?: string) => {
+    let reply: string
+    try {
+      const status = await setProvider(name)
+      setProviderStatus(status)
+      const info = status.providers.find(p => p.name === name)
+      reply = `Switched to ${info?.label ?? name}${info?.model ? ` (${info.model})` : ''}.`
+    } catch (e: any) {
+      reply = e?.message || 'Could not switch provider.'
+    }
+    state.updateMessages(msgs => [
+      ...msgs,
+      ...(userText ? [{ id: nextId(), role: 'user' as const, content: userText }] : []),
+      { id: nextId(), role: 'assistant' as const, content: reply },
+    ])
+  }, [])
+
   const [lastUserMsg, setLastUserMsg] = useState('')
   const lastUserMsgRef = useRef('')
   useEffect(() => { lastUserMsgRef.current = lastUserMsg })
   const handleSend = useCallback(async (text: string) => {
     if (loading) return
+    const providerCommand = parseProviderCommand(text)
+    if (providerCommand) {
+      handleSwitchProvider(providerCommand, text)
+      return
+    }
     setLastUserMsg(text)
     abortRef.current?.abort()
     const controller = new AbortController()
@@ -752,7 +828,7 @@ const [pendingApproval, setPendingApproval] = useState<ApprovalRequest | null>(n
       },
     )
     abortRef.current = stream
-  }, [loading, activeSessionId, persona])
+  }, [loading, activeSessionId, persona, handleSwitchProvider])
 
   // Stable ref for handleSend so effects always have the latest version
   const handleSendRef = useRef<(text: string) => void>(null as any)
@@ -867,7 +943,7 @@ const [pendingApproval, setPendingApproval] = useState<ApprovalRequest | null>(n
   const playBriefing = useCallback(() => {
     if (briefing && voiceOutputEnabled) {
       const tts = PERSONA_TTS[persona]
-      speakResponse(briefing.summary, tts)
+      speakResponse(briefing.summary, { ...tts, persona })
     }
   }, [briefing, voiceOutputEnabled, speakResponse, persona])
 
@@ -880,8 +956,16 @@ const [pendingApproval, setPendingApproval] = useState<ApprovalRequest | null>(n
     localStorage.setItem('friday_voice_language', voiceLanguage)
   }, [voiceLanguage])
 
+  // Remember the wake-word choice across launches. The saved value is read before the persist effect below can overwrite it.
+  const wakeWordWanted = useRef(((): boolean => {
+    try { return localStorage.getItem('friday_wake_word_enabled') === 'true' } catch { return false }
+  })())
   useEffect(() => {
-    localStorage.setItem('friday_wake_word_enabled', String(wakeWordActive))
+    if (wakeWordWanted.current && voiceInputSupported) startWakeWord()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+  useEffect(() => {
+    try { localStorage.setItem('friday_wake_word_enabled', String(wakeWordActive)) } catch {}
   }, [wakeWordActive])
 
   const commandActions = [
@@ -896,7 +980,11 @@ const [pendingApproval, setPendingApproval] = useState<ApprovalRequest | null>(n
 
     { id: 'persona-friday', label: 'Persona: FRIDAY', action: () => handleSetPersona('friday') },
     { id: 'persona-jarvis', label: 'Persona: J.A.R.V.I.S.', action: () => handleSetPersona('jarvis') },
-    { id: 'persona-cortana', label: 'Persona: Cortana', action: () => handleSetPersona('cortana') },
+    { id: 'persona-ultron', label: 'Persona: Ultron', action: () => handleSetPersona('ultron') },
+
+    { id: 'provider-claude', label: `Model: Claude${providerStatus?.active === 'claude' ? ' (active)' : ''}`, action: () => handleSwitchProvider('claude') },
+    { id: 'provider-ollama', label: `Model: Ollama (local)${providerStatus?.active === 'ollama' ? ' (active)' : ''}`, action: () => handleSwitchProvider('ollama') },
+    { id: 'provider-openrouter', label: `Model: OpenRouter${providerStatus?.active === 'openrouter' ? ' (active)' : ''}`, action: () => handleSwitchProvider('openrouter') },
 
     { id: 'vision-screen', label: 'Analyze screen', action: handleVisionCaptureScreen },
     { id: 'vision-camera', label: 'Capture camera', action: handleVisionCaptureCamera },
@@ -933,6 +1021,7 @@ const [pendingApproval, setPendingApproval] = useState<ApprovalRequest | null>(n
 
   return (
     <div className="h-full flex flex-col" style={{ background: 'var(--bg)' }}>
+      <ConsoleDrawer />
       {!backendOnline && (
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-xl text-xs"
           style={{ background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', color: '#fca5a5' }}
@@ -1039,6 +1128,7 @@ const [pendingApproval, setPendingApproval] = useState<ApprovalRequest | null>(n
               ambientActive={ambientActive}
               onToggleHandsFree={handleToggleHandsFree}
               persona={persona}
+              onToggleFloatingOrb={toggleFloatingOrb}
               continuity={continuity}
             computerReady={computerReady}
             blackout={blackout}
@@ -1071,6 +1161,7 @@ const [pendingApproval, setPendingApproval] = useState<ApprovalRequest | null>(n
           ambientActive={ambientActive}
           onExitAmbient={exitAmbient}
           persona={persona}
+          onToggleFloatingOrb={toggleFloatingOrb}
         />
 
         <div className="flex-1 flex min-h-0">
@@ -1239,6 +1330,8 @@ const [pendingApproval, setPendingApproval] = useState<ApprovalRequest | null>(n
           onGoogleConnect={handleGoogleConnect}
           persona={persona}
           onSetPersona={handleSetPersona}
+          providerStatus={providerStatus}
+          onSetProvider={(name) => handleSwitchProvider(name)}
         />
         </Suspense>
       )}

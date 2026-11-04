@@ -15,6 +15,7 @@ config/providers.toml
 logs/
 chrome_profile/
 screenshots/
+models/
 
 # Secrets
 google_credentials.json
@@ -22,6 +23,8 @@ google_credentials.json
 *.key
 
 # Environment
+.venv/
+venv/
 .env
 .env.local
 .env.*.local

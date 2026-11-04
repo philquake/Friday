@@ -28,7 +28,7 @@ from core.briefing import BriefingEngine
 from core.diary import get_diary
 from core.logger import get_metrics
 from core.memory import get_memory_manager
-from core.proactive import CalendarMonitor, EmailMonitor, ProactiveMonitor, ScreenMonitor, SystemMonitor
+from core.proactive import CalendarMonitor, EmailMonitor, ProactiveMonitor, SystemMonitor
 from core.registry import discover_plugins
 from core.security import get_approval_registry
 from core.vision import get_vision_engine
@@ -171,7 +171,7 @@ def get_proactive() -> ProactiveMonitor:
     global _proactive
     if _proactive is None:
         _proactive = ProactiveMonitor()
-        _proactive.add_monitor(ScreenMonitor(interval=3.0))
+        # ScreenMonitor ("Screen changed" alerts) is disabled: it fired on any pixel change, mostly noise.
         _proactive.add_monitor(CalendarMonitor(interval=60.0))
         _proactive.add_monitor(EmailMonitor(interval=120.0))
         _proactive.add_monitor(SystemMonitor(interval=30.0))
@@ -279,6 +279,140 @@ async def chat():
             executor.shutdown(wait=False)
 
     return Response(generate(), mimetype="text/event-stream")
+
+
+# ─── LLM provider switching (Claude / Ollama / OpenRouter) ───────
+_PROVIDER_KEY_HINTS = {"claude": "ANTHROPIC_API_KEY", "openrouter": "OPENROUTER_API_KEY"}
+
+
+def _provider_status() -> dict:
+    from config.providers import SWITCHABLE_PROVIDERS, get_active_provider, is_provider_configured, load_provider_config
+    from core.blackout import is_blackout
+
+    cfg = load_provider_config()
+    return {
+        "active": get_active_provider(cfg),
+        "blackout": is_blackout(),
+        "providers": [
+            {
+                "name": name,
+                "label": label,
+                "configured": is_provider_configured(name, cfg),
+                "model": cfg.get(name, {}).get("model", ""),
+            }
+            for name, label in SWITCHABLE_PROVIDERS.items()
+        ],
+    }
+
+
+def _active_model_info() -> dict:
+    """Model and provider label for the currently active LLM provider (shown in the UI)."""
+    try:
+        status = _provider_status()
+        info = next((p for p in status["providers"] if p["name"] == status["active"]), None)
+        if info:
+            return {"model": info["model"], "provider": info["label"]}
+    except Exception:
+        pass
+    return {"model": "", "provider": ""}
+
+
+@app.route(f"{API_PREFIX}/provider", methods=["GET"])
+@require_auth
+async def get_llm_provider():
+    return jsonify(_provider_status())
+
+
+@app.route(f"{API_PREFIX}/provider", methods=["PUT"])
+@require_auth
+async def set_llm_provider():
+    from agent import llm
+    from config.providers import SWITCHABLE_PROVIDERS, is_provider_configured, set_active_provider
+
+    data = await request.get_json(silent=True) or {}
+    name = data.get("provider")
+    if name not in SWITCHABLE_PROVIDERS:
+        return jsonify({"error": f"provider must be one of {list(SWITCHABLE_PROVIDERS)}"}), 422
+    status = _provider_status()
+    if status["blackout"] and name != "ollama":
+        return jsonify({"error": "Blackout mode is on, only Ollama is allowed", **status}), 409
+    if not is_provider_configured(name):
+        hint = _PROVIDER_KEY_HINTS.get(name, "an API key")
+        label = SWITCHABLE_PROVIDERS[name]
+        return jsonify({"error": f"{label} isn't set up yet. Add {hint} to your .env file.", **status}), 409
+    set_active_provider(name)
+    llm.reset_provider()
+    return jsonify(_provider_status())
+
+
+# ─── Text-to-speech (offline Kokoro) ─────────────────────────────
+_MAX_TTS_LENGTH = 2000
+
+
+@app.route(f"{API_PREFIX}/tts/status", methods=["GET"])
+@require_auth
+async def tts_status():
+    from voice import kokoro_tts
+
+    return jsonify({"available": kokoro_tts.is_available(), "voices": kokoro_tts.AVAILABLE_VOICES})
+
+
+@app.route(f"{API_PREFIX}/tts", methods=["POST"])
+@require_auth
+async def tts():
+    from core.persona import get_persona_config
+    from voice import kokoro_tts
+
+    data = await request.get_json(silent=True) or {}
+    text = data.get("text", "")
+    if not isinstance(text, str) or not text.strip():
+        return jsonify({"error": "text cannot be empty"}), 422
+    if len(text) > _MAX_TTS_LENGTH:
+        return jsonify({"error": f"text exceeds {_MAX_TTS_LENGTH} characters"}), 422
+    if not kokoro_tts.is_available():
+        return jsonify({"error": "Kokoro TTS not available"}), 503
+
+    cfg = get_persona_config(data.get("persona") or "friday")
+    try:
+        audio = await asyncio.to_thread(
+            kokoro_tts.synthesize, text, cfg.get("tts_voice", kokoro_tts.DEFAULT_VOICE), cfg.get("tts_rate", 1.0)
+        )
+    except Exception as e:
+        return jsonify({"error": f"TTS failed: {e}"}), 500
+    return Response(audio, mimetype="audio/wav")
+
+
+# ─── Speech-to-text (offline Whisper) ────────────────────────────
+_MAX_STT_BYTES = 5_000_000  # ~150 s of 16 kHz 16-bit mono
+
+
+@app.route(f"{API_PREFIX}/stt/status", methods=["GET"])
+@require_auth
+async def stt_status():
+    from voice import whisper_stt
+
+    return jsonify({"available": whisper_stt.is_available()})
+
+
+@app.route(f"{API_PREFIX}/stt", methods=["POST"])
+@require_auth
+async def stt():
+    from voice import whisper_stt
+
+    if not whisper_stt.is_available():
+        return jsonify({"error": "Whisper STT not available"}), 503
+    body = await request.get_data()
+    if not body:
+        return jsonify({"error": "audio body is empty"}), 422
+    if len(body) > _MAX_STT_BYTES:
+        return jsonify({"error": "audio too large"}), 413
+    try:
+        text = await asyncio.to_thread(whisper_stt.transcribe, body)
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 422
+    except Exception as e:
+        return jsonify({"error": f"STT failed: {e}"}), 500
+    return jsonify({"text": text})
 
 
 # ─── Autopilot ────────────────────────────────────────────────────
@@ -464,8 +598,7 @@ async def system_info():
             "tokens_used": metrics.get("tokens_used", 0),
             "failures": metrics.get("failures", 0),
             "retries": metrics.get("retries", 0),
-            "model": "openrouter/free",
-            "provider": "OpenRouter",
+            **_active_model_info(),
         }
     )
 
@@ -1478,8 +1611,7 @@ async def _push_system_info():
                     "tokens_used": metrics.get("tokens_used", 0),
                     "failures": metrics.get("failures", 0),
                     "retries": metrics.get("retries", 0),
-                    "model": "openrouter/free",
-                    "provider": "OpenRouter",
+                    **_active_model_info(),
                 },
             )
         except Exception:
@@ -1610,6 +1742,9 @@ if __name__ == "__main__":
     cfg.body_timeout = 300
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
+    from core import ui_commands
+
+    ui_commands.register(loop, _broadcaster.broadcast)
     loop.create_task(_memory_consolidation_loop())
     loop.create_task(_proactive_loop())
     loop.create_task(_push_metrics())

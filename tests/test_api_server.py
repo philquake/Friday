@@ -52,6 +52,133 @@ class TestHealth:
         assert "sessions" in data
 
 
+class TestTts:
+    async def test_tts_requires_auth(self, app):
+        async with app.test_client() as client:
+            resp = await client.post("/api/v1/tts", json={"text": "hi"})
+        assert resp.status_code == 401
+
+    async def test_tts_empty_text_rejected(self, app, headers):
+        async with app.test_client() as client:
+            resp = await client.post("/api/v1/tts", json={"text": "  "}, headers=headers)
+        assert resp.status_code == 422
+
+    async def test_tts_long_text_rejected(self, app, headers):
+        async with app.test_client() as client:
+            resp = await client.post("/api/v1/tts", json={"text": "x" * 2001}, headers=headers)
+        assert resp.status_code == 422
+
+    async def test_tts_unavailable_returns_503(self, app, headers, monkeypatch):
+        monkeypatch.setattr("voice.kokoro_tts.is_available", lambda: False)
+        async with app.test_client() as client:
+            resp = await client.post("/api/v1/tts", json={"text": "hello"}, headers=headers)
+            status = await client.get("/api/v1/tts/status", headers=headers)
+            data = await status.get_json()
+        assert resp.status_code == 503
+        assert data["available"] is False
+
+    async def test_tts_returns_wav_with_persona_voice(self, app, headers, monkeypatch):
+        calls = []
+
+        def fake_synth(text, voice, speed):
+            calls.append((voice, speed))
+            return b"RIFFfake"
+
+        monkeypatch.setattr("voice.kokoro_tts.is_available", lambda: True)
+        monkeypatch.setattr("voice.kokoro_tts.synthesize", fake_synth)
+        async with app.test_client() as client:
+            resp = await client.post("/api/v1/tts", json={"text": "hello", "persona": "jarvis"}, headers=headers)
+            body = await resp.get_data()
+        assert resp.status_code == 200
+        assert resp.mimetype == "audio/wav"
+        assert body == b"RIFFfake"
+        assert calls == [("bf_emma", 0.9)]
+
+
+class TestProviderSwitch:
+    @pytest.fixture(autouse=True)
+    def isolated_config(self, tmp_path, monkeypatch):
+        from config import providers as cfg_mod
+
+        monkeypatch.setattr(cfg_mod, "_OVERRIDE_PATH", str(tmp_path / "active_provider.json"))
+        monkeypatch.setattr(cfg_mod, "CONFIG_PATH", str(tmp_path / "missing.toml"))
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+        monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+        monkeypatch.setattr("core.blackout.is_blackout", lambda: False)
+
+    async def test_get_lists_three_providers(self, app, headers):
+        async with app.test_client() as client:
+            resp = await client.get("/api/v1/provider", headers=headers)
+            data = await resp.get_json()
+        assert resp.status_code == 200
+        assert data["active"] == "ollama"
+        assert [p["name"] for p in data["providers"]] == ["claude", "ollama", "openrouter"]
+
+    async def test_switch_requires_auth(self, app):
+        async with app.test_client() as client:
+            resp = await client.put("/api/v1/provider", json={"provider": "ollama"})
+        assert resp.status_code == 401
+
+    async def test_unknown_provider_rejected(self, app, headers):
+        async with app.test_client() as client:
+            resp = await client.put("/api/v1/provider", json={"provider": "skynet"}, headers=headers)
+        assert resp.status_code == 422
+
+    async def test_unconfigured_claude_gives_helpful_409(self, app, headers):
+        async with app.test_client() as client:
+            resp = await client.put("/api/v1/provider", json={"provider": "claude"}, headers=headers)
+            data = await resp.get_json()
+        assert resp.status_code == 409
+        assert "ANTHROPIC_API_KEY" in data["error"]
+        assert data["active"] == "ollama"
+
+    async def test_switch_to_configured_claude_persists_and_resets(self, app, headers, monkeypatch):
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
+        resets = []
+        monkeypatch.setattr("agent.llm.reset_provider", lambda: resets.append(1))
+        async with app.test_client() as client:
+            resp = await client.put("/api/v1/provider", json={"provider": "claude"}, headers=headers)
+            data = await resp.get_json()
+        assert resp.status_code == 200
+        assert data["active"] == "claude"
+        assert resets == [1]
+
+    async def test_blackout_blocks_cloud_providers(self, app, headers, monkeypatch):
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
+        monkeypatch.setattr("core.blackout.is_blackout", lambda: True)
+        async with app.test_client() as client:
+            resp = await client.put("/api/v1/provider", json={"provider": "claude"}, headers=headers)
+        assert resp.status_code == 409
+
+
+class TestStt:
+    async def test_stt_requires_auth(self, app):
+        async with app.test_client() as client:
+            resp = await client.post("/api/v1/stt", data=b"x")
+        assert resp.status_code == 401
+
+    async def test_stt_unavailable_returns_503(self, app, headers, monkeypatch):
+        monkeypatch.setattr("voice.whisper_stt.is_available", lambda: False)
+        async with app.test_client() as client:
+            resp = await client.post("/api/v1/stt", data=b"x", headers=headers)
+        assert resp.status_code == 503
+
+    async def test_stt_empty_body_rejected(self, app, headers, monkeypatch):
+        monkeypatch.setattr("voice.whisper_stt.is_available", lambda: True)
+        async with app.test_client() as client:
+            resp = await client.post("/api/v1/stt", data=b"", headers=headers)
+        assert resp.status_code == 422
+
+    async def test_stt_returns_text(self, app, headers, monkeypatch):
+        monkeypatch.setattr("voice.whisper_stt.is_available", lambda: True)
+        monkeypatch.setattr("voice.whisper_stt.transcribe", lambda wav: "open the pod bay doors")
+        async with app.test_client() as client:
+            resp = await client.post("/api/v1/stt", data=b"RIFFfake", headers=headers)
+            data = await resp.get_json()
+        assert resp.status_code == 200
+        assert data == {"text": "open the pod bay doors"}
+
+
 class TestChat:
     async def test_chat_requires_message(self, app, headers):
         async with app.test_client() as client:
@@ -491,6 +618,7 @@ class TestAlerts:
         assert data["alerts"] == []
         assert data["count"] == 0
 
+
 class TestVision:
     async def test_vision_analyze_no_image(self, app, headers):
         async with app.test_client() as client:
@@ -543,5 +671,3 @@ class TestAuth:
         async with app.test_client() as client:
             resp = await client.get("/api/v1/health")
         assert resp.status_code == 200
-
-

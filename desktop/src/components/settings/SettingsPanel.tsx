@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import type { MarketplacePlugin, CustomTool } from '../../core/api'
+import type { MarketplacePlugin, CustomTool, ProviderStatus } from '../../core/api'
 import { getPlugins, installPlugin, uninstallPlugin, getCustomTools, createCustomTool, deleteCustomTool, getPrivacyStatus, setPrivacy } from '../../core/api'
 
 interface SettingsPanelProps {
@@ -18,6 +18,8 @@ interface SettingsPanelProps {
   onGoogleConnect: () => void
   persona: string
   onSetPersona: (key: string) => void
+  providerStatus?: ProviderStatus | null
+  onSetProvider?: (name: string) => void
 }
 
 export function SettingsPanel({
@@ -36,6 +38,8 @@ export function SettingsPanel({
   onGoogleConnect,
   persona,
   onSetPersona,
+  providerStatus,
+  onSetProvider,
 }: SettingsPanelProps) {
   const ref = useRef<HTMLDivElement>(null)
   const [plugins, setPlugins] = useState<MarketplacePlugin[] | null>(null)
@@ -169,7 +173,7 @@ export function SettingsPanel({
           <div className="flex items-center justify-between py-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
             <span className="text-sm" style={{ color: '#ccc' }}>Voice Personality</span>
             <div className="flex gap-1">
-              {['friday', 'jarvis', 'cortana'].map(k => (
+              {['friday', 'jarvis', 'ultron'].map(k => (
                 <button
                   key={k}
                   onClick={() => onSetPersona(k)}
@@ -185,6 +189,29 @@ export function SettingsPanel({
               ))}
             </div>
           </div>
+
+          {providerStatus && onSetProvider && (
+            <div className="flex items-center justify-between py-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+              <span className="text-sm" style={{ color: '#ccc' }}>AI Model</span>
+              <div className="flex gap-1">
+                {providerStatus.providers.map(p => (
+                  <button
+                    key={p.name}
+                    onClick={() => onSetProvider(p.name)}
+                    title={p.configured ? p.model : `${p.label} needs an API key in .env`}
+                    className="px-2.5 py-1 rounded-lg text-[11px] uppercase tracking-wider transition-all"
+                    style={{
+                      background: providerStatus.active === p.name ? 'rgba(0,168,255,0.15)' : 'rgba(255,255,255,0.04)',
+                      border: providerStatus.active === p.name ? '1px solid rgba(0,168,255,0.3)' : '1px solid rgba(255,255,255,0.06)',
+                      color: providerStatus.active === p.name ? '#00a8ff' : p.configured ? '#888' : '#555',
+                    }}
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Section: Input */}
           <div className="text-[10px] tracking-[0.15em] py-2" style={{ color: '#555' }}>INPUT</div>

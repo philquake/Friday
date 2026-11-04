@@ -17,6 +17,77 @@ function authHeaders(): Record<string, string> {
   return key ? { 'X-API-Key': key } : {}
 }
 
+/* ─── Offline TTS (Kokoro) ─── */
+export async function getTtsAvailable(): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_BASE}/tts/status`, { headers: authHeaders() })
+    if (!res.ok) return false
+    return !!(await res.json()).available
+  } catch {
+    return false
+  }
+}
+
+export async function fetchTtsAudio(text: string, persona?: string): Promise<Blob | null> {
+  try {
+    const res = await fetch(`${API_BASE}/tts`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ text, persona }),
+    })
+    return res.ok ? await res.blob() : null
+  } catch {
+    return null
+  }
+}
+
+/* ─── LLM provider (Claude / Ollama / OpenRouter) ─── */
+export interface ProviderInfo {
+  name: 'claude' | 'ollama' | 'openrouter'
+  label: string
+  configured: boolean
+  model: string
+}
+
+export interface ProviderStatus {
+  active: string
+  blackout: boolean
+  providers: ProviderInfo[]
+  error?: string
+}
+
+export async function getProvider(): Promise<ProviderStatus> {
+  const res = await fetch(`${API_BASE}/provider`, { headers: authHeaders() })
+  if (!res.ok) throw new Error(`Provider lookup failed (${res.status})`)
+  return res.json()
+}
+
+/** Resolves with the new status; throws an Error carrying the server's message (e.g. missing API key). */
+export async function setProvider(name: string): Promise<ProviderStatus> {
+  const res = await fetch(`${API_BASE}/provider`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify({ provider: name }),
+  })
+  const body = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(body.error || `Could not switch provider (${res.status})`)
+  return body
+}
+
+/* ─── Offline STT (Whisper) ─── */
+export async function transcribeAudio(wav: Blob): Promise<string> {
+  const res = await fetch(`${API_BASE}/stt`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'audio/wav', ...authHeaders() },
+    body: wav,
+  })
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}))
+    throw new Error(body.error || `STT failed (${res.status})`)
+  }
+  return ((await res.json()).text || '').trim()
+}
+
 export interface ApiError {
   status: number
   message: string
