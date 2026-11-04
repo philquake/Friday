@@ -445,6 +445,7 @@ All configuration lives in a single file: `config/providers.toml` (copy from `co
 | Setting | Default | Description |
 |---------|---------|-------------|
 | `[default] provider` | `"openrouter"` | Active provider — `openrouter`, `openai`, `ollama`, or any OpenAI-compatible API |
+| Switch at runtime | — | Choose **Claude**, **Ollama** or **OpenRouter** from the command palette, Settings → AI Model, or say *"switch to Claude"*. Saved to `memory_store/active_provider.json` (never rewrites `providers.toml`). Cloud providers need `ANTHROPIC_API_KEY` / `OPENROUTER_API_KEY` in `.env` and are refused in Blackout mode |
 | `[openrouter] api_key` | — | Your OpenRouter key |
 | `[openrouter] model` | `"openrouter/free"` | Model to use (free tier by default) |
 | `[openrouter] fallback_model` | `"meta-llama/llama-3.2-3b-instruct:free"` | Used when the primary model is unavailable |
