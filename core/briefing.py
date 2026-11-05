@@ -88,7 +88,7 @@ class BriefingEngine:
                 f"latitude={_WEATHER_LAT}&longitude={_WEATHER_LON}"
                 f"&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m"
                 f"&daily=temperature_2m_max,temperature_2m_min,precipitation_sum"
-                f"&temperature_unit=fahrenheit&timezone=auto"
+                f"&timezone=auto"
             )
             resp = await self._client.get(url, timeout=5)
             data = resp.json()

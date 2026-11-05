@@ -1,4 +1,4 @@
-import type { DiaryDay, DiaryPage } from '../types'
+import type { DiaryDay, DiaryPage, WeatherData } from '../types'
 
 const API_BASE = 'http://localhost:8080/api/v1'
 
@@ -244,8 +244,19 @@ export async function setTemperatureUnit(unit: 'c' | 'f'): Promise<{ temperature
   })
 }
 
-export async function getWeather(): Promise<any> {
-  return fetchApi('/weather')
+export async function getWeather(
+  latitude?: number,
+  longitude?: number,
+  location?: string,
+): Promise<WeatherData> {
+  const params = new URLSearchParams()
+  if (latitude !== undefined && longitude !== undefined) {
+    params.set('lat', String(latitude))
+    params.set('lon', String(longitude))
+    if (location) params.set('location', location)
+  }
+  const query = params.size ? `?${params.toString()}` : ''
+  return fetchApi(`/weather${query}`)
 }
 
 export async function getStocks(symbols = 'AAPL,GOOG,MSFT,NVDA,BTC-USD'): Promise<any> {
@@ -446,7 +457,7 @@ export async function writeNightlyDigest(): Promise<{ path: string; success: boo
   return fetchApi('/diary/nightly', { method: 'POST' })
 }
 
-export async function getGoogleAuth(): Promise<any> {
+export async function getGoogleAuth(): Promise<{ status: string; url?: string; message?: string }> {
   return fetchApi('/auth/google')
 }
 

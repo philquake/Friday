@@ -661,13 +661,19 @@ _WEATHER_LOCATION = "Islamabad"
 @ttl_cache(300)
 async def weather():
     try:
-        lat = request.args.get("lat", _WEATHER_LAT)
-        lon = request.args.get("lon", _WEATHER_LON)
+        try:
+            lat = float(request.args.get("lat", _WEATHER_LAT))
+            lon = float(request.args.get("lon", _WEATHER_LON))
+        except ValueError:
+            return jsonify({"error": "latitude and longitude must be numbers"}), 422
+        if not -90 <= lat <= 90 or not -180 <= lon <= 180:
+            return jsonify({"error": "latitude or longitude is out of range"}), 422
+
         url = (
             f"https://api.open-meteo.com/v1/forecast?"
             f"latitude={lat}&longitude={lon}"
             f"&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m"
-            f"&temperature_unit=fahrenheit&timezone=auto"
+            f"&timezone=auto"
         )
         client = get_async_client()
         resp = await client.get(url, timeout=5)
@@ -682,7 +688,7 @@ async def weather():
                 "humidity": cur.get("relative_humidity_2m"),
                 "wind_speed": cur.get("wind_speed_10m"),
                 "weather_code": cur.get("weather_code", 0),
-                "location": request.args.get("location", _WEATHER_LOCATION),
+                "location": request.args.get("location") or _WEATHER_LOCATION,
             }
         )
     except Exception as e:

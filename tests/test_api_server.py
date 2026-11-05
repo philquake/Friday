@@ -93,8 +93,6 @@ class TestProviderSwitch:
         assert resp.status_code == 409
 
 
-
-
 class TestHealth:
     async def test_health_ok(self, app):
         async with app.test_client() as client:
@@ -151,8 +149,6 @@ class TestTts:
         assert resp.mimetype == "audio/wav"
         assert body == b"RIFFfake"
         assert calls == [("bf_emma", 0.9)]
-
-
 
 
 class TestChat:
@@ -572,10 +568,14 @@ class TestUnits:
                 return {"current": {"temperature_2m": 20.0, "apparent_temperature": 0.0, "weather_code": 0}}
 
         class FakeClient:
+            url = ""
+
             async def get(self, *args, **kwargs):
+                self.url = args[0]
                 return FakeResp()
 
-        monkeypatch.setattr(sys.modules["desktop.api_server"], "get_async_client", lambda: FakeClient())
+        fake_client = FakeClient()
+        monkeypatch.setattr(sys.modules["desktop.api_server"], "get_async_client", lambda: fake_client)
         async with app.test_client() as client:
             await client.put("/api/v1/units", json={"temperature": "f"}, headers=headers)
             resp = await client.get("/api/v1/weather?lat=1&lon=2", headers=headers)
@@ -583,6 +583,14 @@ class TestUnits:
         assert data["temperature"] == 68.0
         assert data["feels_like"] == 32.0
         assert data["unit"] == "F"
+        assert "temperature_unit=fahrenheit" not in fake_client.url
+
+    async def test_weather_rejects_invalid_coordinates(self, app, headers):
+        async with app.test_client() as client:
+            invalid = await client.get("/api/v1/weather?lat=abc&lon=2", headers=headers)
+            out_of_range = await client.get("/api/v1/weather?lat=91&lon=2", headers=headers)
+        assert invalid.status_code == 422
+        assert out_of_range.status_code == 422
 
     async def test_put_persists(self, app, headers):
         async with app.test_client() as client:

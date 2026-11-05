@@ -134,7 +134,7 @@ export const LeftSidebar = memo(function LeftSidebar({
         <button onClick={onSettings} className="text-xs transition-all hover:text-white/80" style={{ color: '#666' }}>
           settings
         </button>
-        <span className="text-[11px]" style={{ color: '#444' }}>v0.4</span>
+        <span className="text-[11px]" style={{ color: '#444' }}>v0.5.0</span>
       </div>
     </div>
   )

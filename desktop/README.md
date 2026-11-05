@@ -9,6 +9,10 @@
 </p>
 
 <p align="center">
+  <sub>Community fork of <a href="https://github.com/alimaandev/Friday">Alimaan Dev's Friday</a>, maintained by <a href="https://github.com/philquake">Phillip Cole (@philquake)</a> · v0.5.0</sub>
+</p>
+
+<p align="center">
   <a href="#features">Features</a> •
   <a href="#quick-start">Quick Start</a> •
   <a href="#configuration">Configuration</a> •
@@ -34,10 +38,24 @@
 - **Command Palette** — ⌘K quick actions for session switching, gesture toggling, and theme changes
 - **Status Ribbon** — Compact system bar showing time, model, latency, RAM, CPU cores, uptime, and backend health
 - **Sessions Management** — Multiple AI conversations with local persistence and per-session output directories
+- **Customizable Intelligence panels** — Toggle panel visibility, drag to reorder, use masonry flow, and optionally expand lower panels to full width
+- **Current-location weather and expandable news** — Weather uses browser geolocation when allowed; World News can expand to show additional loaded headlines
+- **Voice and model choices** — Offline Whisper STT and Kokoro TTS, provider switching, and a floating voice orb
+- **Google Calendar and Gmail** — Popup-safe OAuth connection flow; requires your own Google OAuth credentials
 
 <br>
 
 ## Quick Start
+
+### Windows
+
+From the repository root, configure `config/providers.toml` from the example if needed, then run:
+
+```bat
+start.cmd
+```
+
+The launcher installs Python and frontend dependencies, then starts the UI.
 
 ### 1. Clone & install
 
@@ -105,7 +123,7 @@ Output lands in `dist/`. Serve with any static file server.
 | `/api/global-time` | 10s | ZoneInfo |
 | `/api/cve` | 10m | NVD |
 
-Weather location defaults to Islamabad. Override with `?lat=...&lon=...&location=...`.
+The desktop UI requests browser location for local weather. If permission is denied or unavailable, the API falls back to Islamabad. API callers can provide `?lat=...&lon=...&location=...`.
 
 <br>
 

@@ -1,4 +1,4 @@
-import { createContext, memo, useContext } from 'react'
+import { createContext, memo, useContext, useState } from 'react'
 import { Chevron, toggleProps, useCollapsed } from '../common/Collapsible'
 import type { MemoryData, NewsItem, WeatherData, SystemInfo, Earthquake, CryptoData, SpaceData, CveItem, WorldClock, ScreenData, CalendarEvent, EmailMessage, Automation } from '../../types'
 import { WEATHER_CODES } from '../../types'
@@ -12,6 +12,13 @@ import { BriefingCard } from './BriefingCard'
 import { AutomationSection } from './AutomationSection'
 import { VisionPanel } from './VisionPanel'
 import { HolodeckPanel } from '../holodeck/HolodeckPanel'
+import {
+  DEFAULT_INTELLIGENCE_CARD_ORDER,
+  DEFAULT_INTELLIGENCE_DETAIL_ORDER,
+  DEFAULT_INTELLIGENCE_FULL_WIDTH,
+  DEFAULT_INTELLIGENCE_VISIBILITY,
+} from '../../core/intelligenceLayout'
+import type { IntelligencePanelId } from '../../core/intelligenceLayout'
 
 interface StockData {
   symbol: string; price: number; change: number; change_pct: number; sparkline: number[]
@@ -66,6 +73,11 @@ interface IntelligencePanelProps {
   holodeckExpanded?: boolean
   onHolodeckToggle?: () => void
   diaryRefreshToken?: number
+  panelVisibility?: Record<IntelligencePanelId, boolean>
+  cardOrder?: IntelligencePanelId[]
+  detailOrder?: IntelligencePanelId[]
+  fullWidthPanels?: Record<IntelligencePanelId, boolean>
+  onPanelReorder?: (group: 'cards' | 'details', source: IntelligencePanelId, target: IntelligencePanelId) => void
 }
 
 const timeAgo = (dateStr: string) => {
@@ -80,6 +92,11 @@ const LANG_COLORS: Record<string, string> = {
   TypeScript: '#3178c6', JavaScript: '#f1e05a', Python: '#3572A5', Go: '#00ADD8',
   Rust: '#dea584', 'C++': '#f34b7d', Java: '#b07219',
 }
+
+const DATA_PANEL_IDS: IntelligencePanelId[] = [
+  'clocks', 'news', 'markets', 'system', 'earthquakes',
+  'crypto', 'space', 'weather', 'github', 'security',
+]
 
 /** Inside a PanelCell the cell's own collapsible header replaces the section label. */
 const InCellContext = createContext(false)
@@ -214,12 +231,14 @@ const CveSection = memo(function CveSection({ cve }: { cve: CveItem[] }) {
 /* ─── World News ─── */
 
 const NewsSection = memo(function NewsSection({ news }: { news: NewsItem[] }) {
+  const [expanded, setExpanded] = useState(false)
   if (news.length === 0) return <UnavailableSection label="WORLD NEWS" />
+  const visibleNews = expanded ? news : news.slice(0, 5)
   return (
     <>
       <Label>📰 WORLD NEWS</Label>
       <div className="space-y-0.5 px-2">
-        {news.slice(0, 5).map((item, i) => (
+        {visibleNews.map((item, i) => (
           <a key={i} href={item.url} target="_blank" rel="noopener noreferrer"
             className="flex items-start gap-2.5 rounded-lg px-2 py-1.5 transition-all hover:bg-white/[.03]"
           >
@@ -240,6 +259,17 @@ const NewsSection = memo(function NewsSection({ news }: { news: NewsItem[] }) {
           </a>
         ))}
       </div>
+      {news.length > 5 && (
+        <button
+          type="button"
+          onClick={() => setExpanded(value => !value)}
+          className="mt-2 w-full px-3 py-1.5 text-[11px] transition-colors hover:bg-white/[.03]"
+          style={{ color: '#D4A040' }}
+          aria-expanded={expanded}
+        >
+          {expanded ? 'Show less' : 'View more'}
+        </button>
+      )}
     </>
   )
 })
@@ -308,7 +338,7 @@ const WeatherSection = memo(function WeatherSection({ weather }: { weather: Weat
         <span className="text-2xl">{wc?.icon || '☀️'}</span>
         <div>
           <div className="text-base font-light" style={{ color: '#e5e5e5' }}>{Math.round(weather.temperature)}°{weather.unit ?? 'C'}</div>
-          <div className="text-[11px]" style={{ color: '#888' }}>{wc?.label || 'Unknown'}</div>
+          <div className="text-[11px]" style={{ color: '#888' }}>{wc?.label || 'Unknown'} · {weather.location}</div>
         </div>
         <div className="ml-auto text-[10px] space-y-0.5 text-right" style={{ color: '#777' }}>
           <div>{Math.round(weather.feels_like)}° feels</div>
@@ -403,6 +433,61 @@ function PanelCell({ id, title, children, index = 0, empty = false }: {
   )
 }
 
+function DraggablePanelGroup({
+  group,
+  order,
+  className,
+  onReorder,
+  renderPanel,
+  fullWidthPanels,
+}: {
+  group: 'cards' | 'details'
+  order: IntelligencePanelId[]
+  className: string
+  onReorder: (source: IntelligencePanelId, target: IntelligencePanelId) => void
+  renderPanel: (id: IntelligencePanelId) => React.ReactNode
+  fullWidthPanels: Record<IntelligencePanelId, boolean>
+}) {
+  const [dragged, setDragged] = useState<IntelligencePanelId | null>(null)
+
+  return (
+    <div className={className} data-testid={`intel-panel-group-${group}`}>
+      {order.map(id => {
+        const panel = renderPanel(id)
+        if (!panel) return null
+        return (
+          <div
+            key={id}
+            draggable
+            data-testid={`intel-panel-${id}`}
+            aria-roledescription="draggable panel"
+            style={{
+              breakInside: 'avoid',
+              columnSpan: group === 'details' && fullWidthPanels[id] ? 'all' : 'none',
+              marginBottom: '1rem',
+            }}
+            onDragStart={e => {
+              setDragged(id)
+              e.dataTransfer.effectAllowed = 'move'
+              e.dataTransfer.setData('text/plain', id)
+            }}
+            onDragOver={e => e.preventDefault()}
+            onDrop={e => {
+              e.preventDefault()
+              const source = dragged || e.dataTransfer.getData('text/plain') as IntelligencePanelId
+              if (source) onReorder(source, id)
+              setDragged(null)
+            }}
+            onDragEnd={() => setDragged(null)}
+          >
+            {panel}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 export const IntelligencePanel = memo(function IntelligencePanel({
   news, weather, stocks, repos, systemInfo, recentTools, loading,
   earthquakes, crypto, space, cve, clocks, memoryData, onMemoryDelete, screenData, computerStatus, onRefreshComputer,
@@ -413,7 +498,65 @@ export const IntelligencePanel = memo(function IntelligencePanel({
   visionScreenResult, visionCameraResult, onVisionCaptureCamera, onVisionCaptureScreen, visionAnalyzing,
   holodeckMetrics, holodeckGesturePosition, holodeckGestureOpenness, holodeckExpanded, onHolodeckToggle,
   diaryRefreshToken,
+  panelVisibility = DEFAULT_INTELLIGENCE_VISIBILITY,
+  cardOrder = DEFAULT_INTELLIGENCE_CARD_ORDER,
+  detailOrder = DEFAULT_INTELLIGENCE_DETAIL_ORDER,
+  fullWidthPanels = DEFAULT_INTELLIGENCE_FULL_WIDTH,
+  onPanelReorder = () => {},
 }: IntelligencePanelProps) {
+  const cardPanels: Partial<Record<IntelligencePanelId, React.ReactNode>> = {
+    briefing: <BriefingCard briefing={briefing || null} onPlay={onPlayBriefing || (() => {})} voiceOutputEnabled={voiceOutputEnabled || false} />,
+    clocks: <PanelCell id="clocks" title="🕐 WORLD CLOCKS" empty={!clocks?.length}><ClocksSection clocks={clocks || []} /></PanelCell>,
+    news: <PanelCell id="news" title="📰 WORLD NEWS"><NewsSection news={news} /></PanelCell>,
+    markets: <PanelCell id="markets" title="📈 MARKETS"><MarketsSection stocks={stocks} /></PanelCell>,
+    system: <PanelCell id="system" title="🖧 SYSTEM"><SystemSection info={systemInfo} /></PanelCell>,
+    earthquakes: <PanelCell id="earthquakes" title="🌍 EARTHQUAKES" empty={!earthquakes?.length}><EarthquakesSection earthquakes={earthquakes || []} /></PanelCell>,
+    crypto: <PanelCell id="crypto" title="₿ CRYPTO" empty={!crypto?.length}><CryptoSections crypto={crypto || []} /></PanelCell>,
+    space: <PanelCell id="space" title="🛰 SPACE"><SpaceSection space={space || null} /></PanelCell>,
+    weather: <PanelCell id="weather" title="🌤 WEATHER"><WeatherSection weather={weather} /></PanelCell>,
+    github: <PanelCell id="github" title="💻 GITHUB"><GitHubSection repos={repos} /></PanelCell>,
+    security: <PanelCell id="security" title="🔐 SECURITY"><CveSection cve={cve || []} /></PanelCell>,
+    calendar: <CalendarPanel events={calendarEvents || []} authStatus={calendarAuth || ''} onConnect={onCalendarConnect} />,
+    email: <EmailPanel messages={emailMessages || []} unread={emailUnread || 0} authStatus={emailAuth || ''} onConnect={onEmailConnect} />,
+    agent: <PanelCell id="agent" title="⚡ AGENT" empty={!recentTools.length}><AgentActivitySection tools={recentTools} /></PanelCell>,
+  }
+  const detailPanels: Partial<Record<IntelligencePanelId, React.ReactNode>> = {
+    screen: screenData !== undefined ? <ScreenPanel data={screenData} loading={loading} computerStatus={computerStatus} onRefreshComputer={onRefreshComputer} /> : null,
+    memory: memoryData !== undefined ? <MemoryPanel data={memoryData} onDelete={onMemoryDelete} /> : null,
+    automations: automations !== undefined
+      ? <AutomationSection
+          automations={automations}
+          onToggle={onAutomationToggle || (() => {})}
+          onDelete={onAutomationDelete || (() => {})}
+          onTrigger={onAutomationTrigger || (() => {})}
+        />
+      : null,
+    diary: <DiaryPanel refreshToken={diaryRefreshToken} />,
+    vision: <VisionPanel
+      screenResult={visionScreenResult || null}
+      cameraResult={visionCameraResult || null}
+      onCaptureCamera={onVisionCaptureCamera || (() => {})}
+      onCaptureScreen={onVisionCaptureScreen || (() => {})}
+      analyzing={visionAnalyzing || false}
+    />,
+    holodeck: <HolodeckPanel
+      metrics={holodeckMetrics || { latency: 0, memory: 0, tokenUsage: 0, cpu: 0 }}
+      gesturePosition={holodeckGesturePosition}
+      gestureOpenness={holodeckGestureOpenness}
+      expanded={holodeckExpanded !== false}
+      onToggle={onHolodeckToggle}
+    />,
+  }
+  const hasVisibleDataPanels = DATA_PANEL_IDS.some(id => panelVisibility[id])
+  const hasCardContent = (id: IntelligencePanelId) => {
+    if (id === 'briefing') return Boolean(briefing)
+    if (id === 'clocks') return Boolean(clocks?.length)
+    if (id === 'earthquakes') return Boolean(earthquakes?.length)
+    if (id === 'crypto') return Boolean(crypto?.length)
+    if (id === 'agent') return recentTools.length > 0
+    return true
+  }
+
   return (
     <div
       className="w-[min(640px,42vw)] min-w-[300px] flex flex-col h-full shrink-0 overflow-y-auto glass"
@@ -434,79 +577,32 @@ export const IntelligencePanel = memo(function IntelligencePanel({
             {Array.from({ length: 6 }).map((_, i) => <SkeletonSection key={i} />)}
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-4">
-            <BriefingCard briefing={briefing || null} onPlay={onPlayBriefing || (() => {})} voiceOutputEnabled={voiceOutputEnabled || false} />
-            {!news.length && !weather && !stocks.length && !repos.length && !earthquakes?.length && !crypto?.length && !space && !cve?.length && !clocks?.length && (
-              <div className="col-span-2 flex flex-col items-center justify-center py-16 text-xs" style={{ color: '#666' }}>
+          <>
+            {hasVisibleDataPanels && !news.length && !weather && !stocks.length && !repos.length && !earthquakes?.length && !crypto?.length && !space && !cve?.length && !clocks?.length && (
+              <div className="flex flex-col items-center justify-center py-16 text-xs" style={{ color: '#666' }}>
                 <span className="text-2xl mb-2">📡</span>
                 <span>Connect backend on port 8080</span>
                 <span className="text-[10px] mt-1" style={{ color: '#444' }}>python api_server.py</span>
               </div>
             )}
-            <div className="flex flex-col gap-4">
-              <PanelCell id="clocks" title="🕐 WORLD CLOCKS" empty={!clocks?.length}><ClocksSection clocks={clocks || []} /></PanelCell>
-              <PanelCell id="news" title="📰 WORLD NEWS"><NewsSection news={news} /></PanelCell>
-              <PanelCell id="markets" title="📈 MARKETS"><MarketsSection stocks={stocks} /></PanelCell>
-              <PanelCell id="system" title="🖧 SYSTEM"><SystemSection info={systemInfo} /></PanelCell>
-            </div>
-            <div className="flex flex-col gap-4">
-              <PanelCell id="earthquakes" title="🌍 EARTHQUAKES" empty={!earthquakes?.length}>
-                <EarthquakesSection earthquakes={earthquakes || []} />
-              </PanelCell>
-              <PanelCell id="crypto" title="₿ CRYPTO" empty={!crypto?.length}>
-                <CryptoSections crypto={crypto || []} />
-              </PanelCell>
-              <PanelCell id="space" title="🛰 SPACE"><SpaceSection space={space || null} /></PanelCell>
-              <PanelCell id="weather" title="🌤 WEATHER"><WeatherSection weather={weather} /></PanelCell>
-              <PanelCell id="github" title="💻 GITHUB"><GitHubSection repos={repos} /></PanelCell>
-              <PanelCell id="security" title="🔐 SECURITY"><CveSection cve={cve || []} /></PanelCell>
-              <CalendarPanel events={calendarEvents || []} authStatus={calendarAuth || ''} onConnect={onCalendarConnect} />
-              <EmailPanel messages={emailMessages || []} unread={emailUnread || 0} authStatus={emailAuth || ''} onConnect={onEmailConnect} />
-              <PanelCell id="agent" title="⚡ AGENT" empty={!recentTools.length}><AgentActivitySection tools={recentTools} /></PanelCell>
-            </div>
-          </div>
-        )}
-        {screenData !== undefined && (
-          <div className="mt-4">
-            <ScreenPanel data={screenData} loading={loading} computerStatus={computerStatus} onRefreshComputer={onRefreshComputer} />
-          </div>
-        )}
-        {memoryData !== undefined && (
-          <div className="mt-4">
-            <MemoryPanel data={memoryData} onDelete={onMemoryDelete} />
-          </div>
-        )}
-        {automations !== undefined && (
-          <div className="mt-4">
-            <AutomationSection
-              automations={automations}
-              onToggle={onAutomationToggle || (() => {})}
-              onDelete={onAutomationDelete || (() => {})}
-              onTrigger={onAutomationTrigger || (() => {})}
+            <DraggablePanelGroup
+              group="cards"
+              order={cardOrder}
+              className="columns-2 gap-4"
+              onReorder={(source, target) => onPanelReorder('cards', source, target)}
+              renderPanel={id => panelVisibility[id] && hasCardContent(id) ? cardPanels[id] : null}
+              fullWidthPanels={fullWidthPanels}
             />
-          </div>
+          </>
         )}
-        <div className="mt-4">
-          <DiaryPanel refreshToken={diaryRefreshToken} />
-        </div>
-        <div className="mt-4">
-          <VisionPanel
-            screenResult={visionScreenResult || null}
-            cameraResult={visionCameraResult || null}
-            onCaptureCamera={onVisionCaptureCamera || (() => {})}
-            onCaptureScreen={onVisionCaptureScreen || (() => {})}
-            analyzing={visionAnalyzing || false}
-          />
-        </div>
-        <div className="mt-4">
-          <HolodeckPanel
-            metrics={holodeckMetrics || { latency: 0, memory: 0, tokenUsage: 0, cpu: 0 }}
-            gesturePosition={holodeckGesturePosition}
-            gestureOpenness={holodeckGestureOpenness}
-            expanded={holodeckExpanded !== false}
-            onToggle={onHolodeckToggle}
-          />
-        </div>
+        <DraggablePanelGroup
+          group="details"
+          order={detailOrder}
+          className="mt-4 columns-2 gap-4"
+          onReorder={(source, target) => onPanelReorder('details', source, target)}
+          renderPanel={id => panelVisibility[id] ? detailPanels[id] : null}
+          fullWidthPanels={fullWidthPanels}
+        />
       </div>
     </div>
   )

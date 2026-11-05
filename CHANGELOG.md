@@ -1,5 +1,23 @@
 # Changelog
 
+## v0.5.0 — Community fork updates (2026-11-04)
+
+The following changes are maintained in the `philquake/Friday` fork and build on the original Friday project by Alimaan Dev.
+
+### ✨ Features
+
+- **Intelligence customization** — persistent panel visibility, drag-and-drop ordering, masonry layout, and optional full-width lower panels
+- **Current-location weather** — use browser geolocation when allowed, fall back to the configured default, and convert temperature units correctly
+- **Expandable World News** — view more of the headlines already fetched by the RSS feeds
+- **Google OAuth UX** — open the sign-in popup synchronously, report missing credentials, and refresh Calendar/Gmail after authorization
+- **Windows launcher** — `start.cmd` installs Python and frontend dependencies before starting the desktop UI
+- **Voice and model options** — provider switching, temperature-unit setting, offline Whisper STT, Kokoro TTS, ambient listening, and floating-orb voice UI
+
+### 🧾 Attribution
+
+- Original Friday project, upstream v1–v4 work, and MIT license: [Alimaan Dev](https://github.com/alimaandev)
+- Community fork maintenance and v0.5.0 updates: [Phillip Cole (@philquake)](https://github.com/philquake)
+
 ## v4 — "The Orb" (2026-08-11)
 
 ### 🚀 Features

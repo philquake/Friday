@@ -27,10 +27,11 @@ export class HolodeckScene {
   private barTargets: number[] = []
   private particles: THREE.Points
   private rings: THREE.Line[] = []
-  private clock = new THREE.Clock()
+  private timer = new THREE.Timer()
   private disposeFn: (() => void)[] = []
 
   constructor(canvas: HTMLCanvasElement) {
+    this.timer.connect(document)
     const w = canvas.clientWidth || 600
     const h = canvas.clientHeight || 300
 
@@ -127,8 +128,9 @@ export class HolodeckScene {
 
   private animate = () => {
     this.animId = requestAnimationFrame(this.animate)
-    const dt = this.clock.getDelta()
-    const t = this.clock.getElapsedTime()
+    this.timer.update()
+    const dt = this.timer.getDelta()
+    const t = this.timer.getElapsed()
 
     // Smooth bars
     this.bars.forEach((bar, i) => {
@@ -181,6 +183,8 @@ export class HolodeckScene {
 
   dispose() {
     cancelAnimationFrame(this.animId)
+    this.timer.disconnect()
+    this.timer.dispose()
     this.disposeFn.forEach(fn => fn())
     this.renderer.dispose()
   }

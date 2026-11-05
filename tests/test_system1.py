@@ -1,8 +1,10 @@
+import json
 import time
+import urllib.request
 
 import pytest
 
-from core.system1 import System1, build_default_system1
+from core.system1 import System1, _handle_weather, build_default_system1
 
 
 class TestSystem1:
@@ -122,6 +124,42 @@ class TestDefaultSystem1:
         # May return None if network is unavailable
         if result:
             assert result["reflex"] == "weather"
+
+    def test_weather_converts_celsius_response_to_saved_unit(self, monkeypatch):
+        response_data = {
+            "current": {
+                "temperature_2m": 20.0,
+                "apparent_temperature": 18.0,
+                "relative_humidity_2m": 50,
+                "wind_speed_10m": 10,
+                "weather_code": 0,
+            }
+        }
+
+        class FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return None
+
+            def read(self):
+                return json.dumps(response_data).encode()
+
+        requested_urls = []
+
+        def fake_urlopen(request, timeout):
+            requested_urls.append(request.full_url)
+            return FakeResponse()
+
+        monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
+        monkeypatch.setattr("core.system1.get_temperature_unit", lambda: "f")
+
+        result = _handle_weather("what is the temperature")
+
+        assert result is not None
+        assert result.startswith("68.0°F, Clear. Feels like 64.4°F.")
+        assert "temperature_unit=fahrenheit" not in requested_urls[0]
 
     def test_system_info_reflex(self):
         s1 = build_default_system1()

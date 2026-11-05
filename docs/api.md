@@ -72,6 +72,18 @@ All data endpoints are `GET` and return the latest cached data (TTL varies).
 | `/cve` | `{ cve: [{ id, severity, score, description, published }] }` |
 | `/global-time` | `{ clocks: [{ zone, time, offset }] }` |
 
+### `GET /weather`
+
+Optional query parameters let callers select a location:
+
+| Parameter | Description |
+|-----------|-------------|
+| `lat` | Latitude from -90 to 90; omitted values use the configured default |
+| `lon` | Longitude from -180 to 180; omitted values use the configured default |
+| `location` | Display label for the selected coordinates |
+
+Invalid coordinates return HTTP 422. Without coordinate overrides, the API uses its configured default location (Islamabad); the desktop UI requests browser geolocation and falls back to that default if unavailable or denied.
+
 ---
 
 ## System

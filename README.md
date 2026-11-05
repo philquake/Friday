@@ -59,6 +59,7 @@
   - [🤔 Why Friday?](#-why-friday)
   - [🎬 Demo](#-demo)
   - [⚡ Quick Start](#-quick-start)
+  - [✨ Fork updates](#-fork-updates-v050)
   - [🚀 Features](#-features)
   - [🔒 Privacy & Security](#-privacy--security)
   - [📁 Project Structure](#-project-structure)
@@ -83,6 +84,8 @@
 **Friday** is an open-source JARVIS-class AI that lives on your desktop. Speak to it, gesture at it, or type — it sees your screen, controls your computer, runs automations, visualizes data in 3D, and talks back with personality. Everything runs locally. Your API key, your LLM, your rules.
 
 > The 3D orb reacts to your voice. The Intelligence panel streams 10 live data sources. The Holodeck renders your metrics as animated 3D bars. Zen mode turns everything into a monochrome orb + chat. And it all starts with one command.
+
+> **About this repository:** This is a community-maintained fork of [Alimaan Dev's original Friday](https://github.com/alimaandev/Friday). The original project and upstream v1–v4 work are by [Alimaan Dev](https://github.com/alimaandev); fork maintenance and the updates below are by [Phillip Cole (@philquake)](https://github.com/philquake).
 
 ```bash
 python main.py --ui   # → boots API server + frontend together
@@ -166,6 +169,26 @@ docker compose up -d  # → Frontend: http://localhost:5173 · Backend: http://l
 
 ---
 
+## ✨ Fork updates (v0.5.0)
+
+This fork release builds on the original Friday v4 codebase while retaining its MIT license and upstream attribution.
+
+- **Personalized Intelligence panel** — hide or show individual panels in Settings, drag to reorder, and use masonry columns that flow into available space. Lower panels can optionally span both columns.
+- **More useful live data** — expand World News to view additional loaded headlines; weather follows the browser's current location when permission is granted, with the configured default as fallback.
+- **Voice and provider improvements** — choose supported LLM providers and temperature units, use offline Whisper speech recognition and Kokoro speech synthesis, and access the floating orb voice UI.
+- **Google connection flow** — connect Calendar and Gmail through a popup-safe OAuth flow with visible setup feedback. Google OAuth credentials are still required.
+- **Windows startup** — run `start.cmd` from the repository root to install dependencies and launch the app.
+
+The desktop app and frontend package version are **0.5.0**. For implementation history, see [CHANGELOG.md](CHANGELOG.md).
+
+<div align="right">
+  <a href="#readme-top">▲ back to top</a>
+</div>
+
+<br>
+
+---
+
 ## 🤔 Why Friday?
 
 **Cloud assistants are convenient — and that's the problem.** They live behind a website, own your conversation history, upload your screen on request to a vendor you didn't choose, and charge a subscription for features you could run yourself.
@@ -224,6 +247,8 @@ cd ..
 cp config/providers.toml.example config/providers.toml
 python main.py --ui   # boots API server + frontend, opens your browser
 ```
+
+On Windows, you can run `start.cmd` from the repository root after setting up `config/providers.toml`.
 
 ### 🐳 Docker
 

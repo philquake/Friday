@@ -20,10 +20,14 @@ import { ToastContainer } from './components/common/Toast'
 import { toast } from './core/ToastStore'
 import { ConsoleDrawer } from './components/common/ConsoleDrawer'
 import { ORB_NEEDS_APP_MSG, publishOrb, runOrbAction, toggleFloatingOrb } from './core/orbChannel'
+import { connectGoogle } from './core/googleAuth'
+import { moveIntelligencePanel, readIntelligenceLayout, writeIntelligenceLayout } from './core/intelligenceLayout'
+import type { IntelligencePanelId } from './core/intelligenceLayout'
+import { getWeatherForCurrentLocation } from './core/currentWeather'
 const IntelligencePanel = lazy(() => import('./components/sidebar/IntelligencePanel').then(m => ({ default: m.IntelligencePanel })))
 const CommandPalette = lazy(() => import('./components/command/CommandPalette').then(m => ({ default: m.CommandPalette })))
 const SettingsPanel = lazy(() => import('./components/settings/SettingsPanel').then(m => ({ default: m.SettingsPanel })))
-import { streamChat, checkHealth, getSessions, createSession, deleteSession, getOutputDir, setOutputDir, getGoogleAuth, getNews, getWeather, getStocks, getGithubTrending, getEarthquakes, getCrypto, getSpace, getCve, getScreen, getMemory, deleteMemory, getCalendarEvents, getEmailInbox, getEmailUnread, connectEventSource, getAutomations, toggleAutomation, deleteAutomation, triggerAutomation, analyzeVisionImage, getVisionScreen, resolveApproval, streamAutopilot, getKnowledgeContinuity, getComputerStatus, getPrivacyStatus, getProvider, setProvider } from './core/api'
+import { streamChat, checkHealth, getSessions, createSession, deleteSession, getOutputDir, setOutputDir, getGoogleAuth, getNews, getStocks, getGithubTrending, getEarthquakes, getCrypto, getSpace, getCve, getScreen, getMemory, deleteMemory, getCalendarEvents, getEmailInbox, getEmailUnread, connectEventSource, getAutomations, toggleAutomation, deleteAutomation, triggerAutomation, analyzeVisionImage, getVisionScreen, resolveApproval, streamAutopilot, getKnowledgeContinuity, getComputerStatus, getPrivacyStatus, getProvider, setProvider } from './core/api'
 import type { ServerEvent, ProviderStatus } from './core/api'
 import { parseProviderCommand } from './core/voiceCommands'
 import { BrainView } from './components/autopilot/BrainView'
@@ -64,6 +68,7 @@ function App() {
   const [sseConnected, setSseConnected] = useState(false)
   const [alerts, setAlerts] = useState<ProactiveAlert[]>([])
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [intelligenceLayout, setIntelligenceLayout] = useState(readIntelligenceLayout)
 const [briefing, setBriefing] = useState<{ summary: string; sections: string[]; greeting: string; yesterday?: string } | null>(null)
 const [automations, setAutomations] = useState<Automation[]>([])
 const [visionScreenResult, setVisionScreenResult] = useState<{ description: string; text: string | null; timestamp: number } | null>(null)
@@ -113,15 +118,43 @@ const [pendingApproval, setPendingApproval] = useState<ApprovalRequest | null>(n
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
+  useEffect(() => {
+    writeIntelligenceLayout(intelligenceLayout)
+  }, [intelligenceLayout])
+
+  const toggleIntelligencePanel = useCallback((id: IntelligencePanelId) => {
+    setIntelligenceLayout(layout => ({
+      ...layout,
+      visibility: { ...layout.visibility, [id]: !layout.visibility[id] },
+    }))
+  }, [])
+
+  const toggleIntelligencePanelFullWidth = useCallback((id: IntelligencePanelId) => {
+    setIntelligenceLayout(layout => ({
+      ...layout,
+      fullWidth: { ...layout.fullWidth, [id]: !layout.fullWidth[id] },
+    }))
+  }, [])
+
+  const reorderIntelligencePanels = useCallback((
+    group: 'cards' | 'details',
+    source: IntelligencePanelId,
+    target: IntelligencePanelId,
+  ) => {
+    setIntelligenceLayout(layout => group === 'cards'
+      ? { ...layout, cardOrder: moveIntelligencePanel(layout.cardOrder, source, target) }
+      : { ...layout, detailOrder: moveIntelligencePanel(layout.detailOrder, source, target) })
+  }, [])
+
   const handleGoogleConnect = useCallback(() => {
-    getGoogleAuth().then(d => {
-      if (d.url) {
-        const popup = window.open(d.url, '_blank')
-        if (!popup || popup.closed) {
-          alert('Please allow popups for this site to connect Google Calendar and Email.')
-        }
-      }
-    }).catch(() => {})
+    connectGoogle(() => {
+      setCalendarAuth('authenticated')
+      setEmailAuth('authenticated')
+      toast('success', 'Google account connected.')
+      getCalendarEvents().then(d => setCalendarEvents(d.events || [])).catch(() => {})
+      getEmailInbox().then(d => setEmailMessages(d.messages || [])).catch(() => {})
+      getEmailUnread().then(d => setEmailUnread(d.unread || 0)).catch(() => {})
+    }, message => toast('error', message))
   }, [])
 
   const { stream, status: camStatus, requestAccess, stop: stopCam } = useCamera()
@@ -399,7 +432,7 @@ const [pendingApproval, setPendingApproval] = useState<ApprovalRequest | null>(n
           const [authResp] = await Promise.all([
             getGoogleAuth(),
             getNews().then(d => setNews(d.articles || [])).catch(() => {}),
-            getWeather().then(d => setWeather(d)).catch(() => {}),
+            getWeatherForCurrentLocation().then(d => setWeather(d)).catch(() => {}),
             getStocks().then(d => setStocks(d.stocks || [])).catch(() => {}),
             getGithubTrending().then(d => setRepos(d.repos || [])).catch(() => {}),
             getEarthquakes().then(d => setEarthquakes(d.earthquakes || [])).catch(() => {}),
@@ -903,7 +936,7 @@ const [pendingApproval, setPendingApproval] = useState<ApprovalRequest | null>(n
   const handleSetTemperatureUnit = useCallback(async (unit: 'C' | 'F') => {
     try {
       await setTemperatureUnit(unit === 'F' ? 'f' : 'c')
-      setWeather(await getWeather())
+      setWeather(await getWeatherForCurrentLocation())
     } catch {}
   }, [])
 
@@ -1313,6 +1346,11 @@ const [pendingApproval, setPendingApproval] = useState<ApprovalRequest | null>(n
               holodeckExpanded={holodeckExpanded}
               onHolodeckToggle={() => setHolodeckExpanded(e => !e)}
               diaryRefreshToken={diaryRefreshToken}
+              panelVisibility={intelligenceLayout.visibility}
+              cardOrder={intelligenceLayout.cardOrder}
+              detailOrder={intelligenceLayout.detailOrder}
+              fullWidthPanels={intelligenceLayout.fullWidth}
+              onPanelReorder={reorderIntelligencePanels}
             />
           </Suspense>
         </div>
@@ -1350,6 +1388,10 @@ const [pendingApproval, setPendingApproval] = useState<ApprovalRequest | null>(n
           onSetPersona={handleSetPersona}
           providerStatus={providerStatus}
           onSetProvider={(name) => handleSwitchProvider(name)}
+          intelligenceVisibility={intelligenceLayout.visibility}
+          onToggleIntelligencePanel={toggleIntelligencePanel}
+          intelligenceFullWidth={intelligenceLayout.fullWidth}
+          onToggleIntelligenceFullWidth={toggleIntelligencePanelFullWidth}
         />
         </Suspense>
       )}

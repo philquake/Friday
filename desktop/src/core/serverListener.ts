@@ -1,4 +1,5 @@
 import { transcribeAudio } from './api'
+import audioWorkletUrl from './serverListener.worklet.js?url&no-inline'
 
 /**
  * Microphone listener for environments where the Web Speech API doesn't work (Electron).
@@ -63,10 +64,24 @@ export async function startServerListener(opts: ServerListenerOptions): Promise<
     audio: { echoCancellation: true, noiseSuppression: true, channelCount: 1 },
   })
   const ctx = new AudioContext()
+  try {
+    if (!ctx.audioWorklet) throw new Error('AudioWorklet is not supported in this browser')
+    await ctx.audioWorklet.addModule(audioWorkletUrl)
+  } catch (error) {
+    stream.getTracks().forEach(t => t.stop())
+    await ctx.close()
+    throw error
+  }
   if (ctx.state === 'suspended') await ctx.resume().catch(() => {})
   console.info(`[voice] microphone open (${ctx.sampleRate} Hz, audio ${ctx.state})`)
   const source = ctx.createMediaStreamSource(stream)
-  const proc = ctx.createScriptProcessor(4096, 1, 1)
+  const proc = new AudioWorkletNode(ctx, 'friday-audio-capture', {
+    numberOfInputs: 1,
+    numberOfOutputs: 1,
+    channelCount: 1,
+    channelCountMode: 'explicit',
+    outputChannelCount: [1],
+  })
   const mute = ctx.createGain()
   mute.gain.value = 0
   source.connect(proc)
@@ -110,7 +125,7 @@ export async function startServerListener(opts: ServerListenerOptions): Promise<
       })
   }
 
-  proc.onaudioprocess = (e) => {
+  proc.port.onmessage = (e: MessageEvent<unknown>) => {
     if (stopped) return
     if (muted) {
       speaking = false
@@ -121,7 +136,8 @@ export async function startServerListener(opts: ServerListenerOptions): Promise<
       prerollMs = 0
       return
     }
-    const data = new Float32Array(e.inputBuffer.getChannelData(0))
+    if (!(e.data instanceof Float32Array)) return
+    const data = e.data
     const ms = (data.length / ctx.sampleRate) * 1000
     let sum = 0
     for (let i = 0; i < data.length; i++) sum += data[i] * data[i]
@@ -163,7 +179,8 @@ export async function startServerListener(opts: ServerListenerOptions): Promise<
       if (stopped) return
       stopped = true
       clearInterval(levelCheck)
-      proc.onaudioprocess = null
+      proc.port.onmessage = null
+      proc.port.close()
       try { source.disconnect(); proc.disconnect(); mute.disconnect() } catch {}
       stream.getTracks().forEach(t => t.stop())
       ctx.close().catch(() => {})

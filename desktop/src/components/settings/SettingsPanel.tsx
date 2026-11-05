@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import type { MarketplacePlugin, CustomTool, ProviderStatus } from '../../core/api'
 import { getPlugins, installPlugin, uninstallPlugin, getCustomTools, createCustomTool, deleteCustomTool, getPrivacyStatus, setPrivacy } from '../../core/api'
+import { INTELLIGENCE_DETAIL_PANELS, INTELLIGENCE_PANELS } from '../../core/intelligenceLayout'
+import type { IntelligencePanelId } from '../../core/intelligenceLayout'
 
 interface SettingsPanelProps {
   onClose: () => void
@@ -22,6 +24,10 @@ interface SettingsPanelProps {
   onSetPersona: (key: string) => void
   providerStatus?: ProviderStatus | null
   onSetProvider?: (name: string) => void
+  intelligenceVisibility: Record<IntelligencePanelId, boolean>
+  onToggleIntelligencePanel: (id: IntelligencePanelId) => void
+  intelligenceFullWidth: Record<IntelligencePanelId, boolean>
+  onToggleIntelligenceFullWidth: (id: IntelligencePanelId) => void
 }
 
 export function SettingsPanel({
@@ -44,6 +50,10 @@ export function SettingsPanel({
   onSetPersona,
   providerStatus,
   onSetProvider,
+  intelligenceVisibility,
+  onToggleIntelligencePanel,
+  intelligenceFullWidth,
+  onToggleIntelligenceFullWidth,
 }: SettingsPanelProps) {
   const ref = useRef<HTMLDivElement>(null)
   const [plugins, setPlugins] = useState<MarketplacePlugin[] | null>(null)
@@ -53,6 +63,7 @@ export function SettingsPanel({
   const [toolMsg, setToolMsg] = useState('')
   const [toolBusy, setToolBusy] = useState(false)
   const [blackout, setBlackout] = useState(false)
+  const [settingsTab, setSettingsTab] = useState<'general' | 'intelligence'>('general')
 
   useEffect(() => {
     getPlugins().then(setPlugins).catch(() => setPlugins([]))
@@ -159,6 +170,85 @@ export function SettingsPanel({
           </button>
         </div>
 
+        <div className="flex gap-2 px-6 pt-3" aria-label="Settings sections">
+          {(['general', 'intelligence'] as const).map(tab => (
+            <button
+              key={tab}
+              type="button"
+              aria-pressed={settingsTab === tab}
+              onClick={() => setSettingsTab(tab)}
+              className="px-3 py-1.5 rounded-lg text-[11px] uppercase tracking-wider"
+              style={{
+                color: settingsTab === tab ? '#00a8ff' : '#777',
+                background: settingsTab === tab ? 'rgba(0,168,255,0.12)' : 'transparent',
+                border: `1px solid ${settingsTab === tab ? 'rgba(0,168,255,0.25)' : 'transparent'}`,
+              }}
+            >
+              {tab}
+            </button>
+          ))}
+        </div>
+
+        {settingsTab === 'intelligence' ? (
+          <div className="px-6 py-4 space-y-1">
+            <div className="text-[10px] tracking-[0.15em] py-2" style={{ color: '#555' }}>INTELLIGENCE PANELS</div>
+            <div className="text-[11px] pb-2" style={{ color: '#666' }}>Choose which panels appear in Intelligence.</div>
+            {INTELLIGENCE_PANELS.map(panel => (
+              <div key={panel.id} className="flex items-center justify-between py-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                <span className="text-sm" style={{ color: '#ccc' }}>{panel.label}</span>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-label={panel.label}
+                  aria-checked={intelligenceVisibility[panel.id]}
+                  onClick={() => onToggleIntelligencePanel(panel.id)}
+                  className="relative w-10 h-5 rounded-full transition-all"
+                  style={{
+                    background: intelligenceVisibility[panel.id] ? 'rgba(0,168,255,0.3)' : 'rgba(255,255,255,0.08)',
+                    border: intelligenceVisibility[panel.id] ? '1px solid rgba(0,168,255,0.4)' : '1px solid rgba(255,255,255,0.1)',
+                  }}
+                >
+                  <span
+                    className="absolute top-0.5 w-3.5 h-3.5 rounded-full transition-all"
+                    style={{
+                      left: intelligenceVisibility[panel.id] ? '22px' : '3px',
+                      background: intelligenceVisibility[panel.id] ? '#00a8ff' : '#666',
+                    }}
+                  />
+                </button>
+              </div>
+            ))}
+            <div className="mt-4 border-t pt-3" style={{ borderColor: 'rgba(255,255,255,0.08)' }}>
+              <div className="text-[10px] tracking-[0.15em] py-2" style={{ color: '#555' }}>LOWER PANELS · FULL WIDTH</div>
+              <div className="text-[11px] pb-2" style={{ color: '#666' }}>Expand selected panels across both columns below the divider.</div>
+              {INTELLIGENCE_DETAIL_PANELS.map(panel => (
+                <div key={panel.id} className="flex items-center justify-between py-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                  <span className="text-sm" style={{ color: '#ccc' }}>{panel.label}</span>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-label={`Full width: ${panel.label}`}
+                    aria-checked={intelligenceFullWidth[panel.id]}
+                    onClick={() => onToggleIntelligenceFullWidth(panel.id)}
+                    className="relative w-10 h-5 rounded-full transition-all"
+                    style={{
+                      background: intelligenceFullWidth[panel.id] ? 'rgba(0,168,255,0.3)' : 'rgba(255,255,255,0.08)',
+                      border: intelligenceFullWidth[panel.id] ? '1px solid rgba(0,168,255,0.4)' : '1px solid rgba(255,255,255,0.1)',
+                    }}
+                  >
+                    <span
+                      className="absolute top-0.5 w-3.5 h-3.5 rounded-full transition-all"
+                      style={{
+                        left: intelligenceFullWidth[panel.id] ? '22px' : '3px',
+                        background: intelligenceFullWidth[panel.id] ? '#00a8ff' : '#666',
+                      }}
+                    />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
         <div className="px-6 py-4 space-y-1">
           {/* Section: Voice */}
           <div className="text-[10px] tracking-[0.15em] py-2" style={{ color: '#555' }}>VOICE</div>
@@ -367,9 +457,10 @@ export function SettingsPanel({
           </div>
           <div className="flex items-center justify-between py-3">
             <span className="text-sm" style={{ color: '#ccc' }}>Version</span>
-            <span className="text-xs" style={{ color: '#666' }}>0.4</span>
+            <span className="text-xs" style={{ color: '#666' }}>0.5.0</span>
           </div>
         </div>
+        )}
       </div>
     </div>
   )
