@@ -100,7 +100,6 @@ const [pendingApproval, setPendingApproval] = useState<ApprovalRequest | null>(n
     return found || s.sessions[0]
   })
   const isChatThinking = loading && active.messages.some(m => m.role === 'assistant' && m.streaming && !m.content)
-  const orbDisplayState = isChatThinking ? 'thinking' : orb
 
   const [systemInfo, setSystemInfo] = useState<SystemInfo>({
     hostname: '-', os: '-', cpu_cores: 0, python_version: '-',
@@ -181,6 +180,12 @@ const [pendingApproval, setPendingApproval] = useState<ApprovalRequest | null>(n
     speak: speakResponse,
     stop: stopVoiceOutput,
   } = useVoiceOutput()
+
+  const orbDisplayState = isChatThinking
+    ? 'thinking'
+    : orb === 'idle' && voiceInputStatus === 'listening'
+      ? 'listening'
+      : orb
 
   // Don't let the mic hear Friday's own voice (would be transcribed and sent as a new message)
   useEffect(() => {

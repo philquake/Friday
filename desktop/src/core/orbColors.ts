@@ -17,4 +17,4 @@ export const ORB_STATE_COLORS: Record<OrbState, string> = {
 export const orbColor = (state: string): string => ORB_STATE_COLORS[state as OrbState] ?? ORB_STATE_COLORS.idle
 
 export const orbVisualState = (state: OrbState, voiceActivity: boolean): OrbState =>
-  state === 'offline' || state === 'thinking' ? state : voiceActivity ? 'speaking' : state
+  state === 'idle' && voiceActivity ? 'speaking' : state

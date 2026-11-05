@@ -22,4 +22,16 @@ describe('orbColors', () => {
     expect(orbVisualState('idle', true)).toBe('speaking')
     expect(orbVisualState('offline', true)).toBe('offline')
   })
+
+  it('keeps listening visually distinct from idle during voice activity', () => {
+    expect(orbVisualState('listening', true)).toBe('listening')
+    expect(orbColor('listening')).not.toBe(orbColor('idle'))
+  })
+
+  it('preserves every explicit state color during voice activity', () => {
+    const states = Object.keys(ORB_STATE_COLORS) as Array<keyof typeof ORB_STATE_COLORS>
+    for (const state of states) {
+      expect(orbVisualState(state, true)).toBe(state === 'idle' ? 'speaking' : state)
+    }
+  })
 })
