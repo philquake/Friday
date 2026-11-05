@@ -1,7 +1,7 @@
 import { memo, useRef, useEffect, useMemo } from 'react'
 import * as THREE from 'three'
 import type { OrbState } from '../../types'
-import { orbColor } from '../../core/orbColors'
+import { orbColor, orbVisualState } from '../../core/orbColors'
 import {
   createCoreMaterial,
   createInnerCoreMaterial,
@@ -362,25 +362,27 @@ export function JarvisOrb({ orbState, handPosition, voiceActivity }: { orbState:
         return
       }
       time += 0.016
-      const colorKey = stateRef.current === 'offline' ? 'offline' : voiceRef.current ? 'speaking' : stateRef.current
+      const colorKey = orbVisualState(stateRef.current, !!voiceRef.current)
       const stateName = stateRef.current === 'error' ? 'thinking' : colorKey
       const cfg = STATE_CFG[stateName] || STATE_CFG[BUSY_STATES.has(stateName) ? 'thinking' : 'idle']
+      const tintBoost = colorKey === 'thinking' ? 0.3 : 0
+      const tintAmount = (base: number) => Math.min(base + tintBoost, 1)
       const rot = time * cfg.coreSpeed
 
       /* Ease the tint toward this state's color, then re-derive every material color from the base palette */
       tint.lerp(targetColor.set(orbColor(colorKey)), 0.06)
-      coreMat.uniforms.uColorInner.value.copy(B_DARK).lerp(tint, 0.75)
-      coreMat.uniforms.uColorOuter.value.copy(B_MEDIUM).lerp(tint, 0.7)
-      coreMat.uniforms.uEdgeColor.value.copy(B_LIGHT).lerp(tint, 0.7)
-      innerMat.uniforms.uColor.value.copy(B_LIGHT).lerp(tint, 0.75)
-      holoMat.uniforms.uLineColor.value.copy(B_WHITE).lerp(tint, 0.6)
-      shellMat.color.copy(B_MEDIUM).lerp(tint, 0.6)
-      dotMat.color.copy(B_LIGHT).lerp(tint, 0.7)
-      pMat.color.copy(B_WHITE).lerp(tint, 0.5)
-      nMat.color.copy(B_WHITE).lerp(tint, 0.6)
-      spriteMat.color.copy(B_WHITE).lerp(tint, 0.85)
+      coreMat.uniforms.uColorInner.value.copy(B_DARK).lerp(tint, tintAmount(0.75))
+      coreMat.uniforms.uColorOuter.value.copy(B_MEDIUM).lerp(tint, tintAmount(0.7))
+      coreMat.uniforms.uEdgeColor.value.copy(B_LIGHT).lerp(tint, tintAmount(0.7))
+      innerMat.uniforms.uColor.value.copy(B_LIGHT).lerp(tint, tintAmount(0.75))
+      holoMat.uniforms.uLineColor.value.copy(B_WHITE).lerp(tint, tintAmount(0.6))
+      shellMat.color.copy(B_MEDIUM).lerp(tint, tintAmount(0.6))
+      dotMat.color.copy(B_LIGHT).lerp(tint, tintAmount(0.7))
+      pMat.color.copy(B_WHITE).lerp(tint, tintAmount(0.5))
+      nMat.color.copy(B_WHITE).lerp(tint, tintAmount(0.6))
+      spriteMat.color.copy(B_WHITE).lerp(tint, tintAmount(0.85))
       for (const entry of ringEntries) {
-        ;(entry.mesh.material as THREE.ShaderMaterial).uniforms.uColor.value.copy(entry.base).lerp(tint, 0.6)
+        ;(entry.mesh.material as THREE.ShaderMaterial).uniforms.uColor.value.copy(entry.base).lerp(tint, tintAmount(0.6))
       }
 
       /* Group rotation */

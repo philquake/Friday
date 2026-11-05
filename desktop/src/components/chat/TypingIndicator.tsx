@@ -1,4 +1,7 @@
 import { memo } from 'react'
+import { orbColor } from '../../core/orbColors'
+
+const THINKING_COLOR = orbColor('thinking')
 
 export const TypingIndicator = memo(function TypingIndicator() {
   return (
@@ -7,7 +10,7 @@ export const TypingIndicator = memo(function TypingIndicator() {
         <span
           key={i}
           className="inline-block w-[4px] h-[4px] rounded-full animate-bounce-dot"
-          style={{ background: '#f59e0b', animationDelay: `${i * 0.15}s` }}
+          style={{ background: THINKING_COLOR, animationDelay: `${i * 0.15}s` }}
         />
       ))}
     </span>

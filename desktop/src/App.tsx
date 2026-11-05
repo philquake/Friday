@@ -24,6 +24,7 @@ import { connectGoogle } from './core/googleAuth'
 import { moveIntelligencePanel, readIntelligenceLayout, writeIntelligenceLayout } from './core/intelligenceLayout'
 import type { IntelligencePanelId } from './core/intelligenceLayout'
 import { getWeatherForCurrentLocation } from './core/currentWeather'
+import { nextMessageId } from './core/messageId'
 const IntelligencePanel = lazy(() => import('./components/sidebar/IntelligencePanel').then(m => ({ default: m.IntelligencePanel })))
 const CommandPalette = lazy(() => import('./components/command/CommandPalette').then(m => ({ default: m.CommandPalette })))
 const SettingsPanel = lazy(() => import('./components/settings/SettingsPanel').then(m => ({ default: m.SettingsPanel })))
@@ -37,8 +38,6 @@ import type { AutopilotRun, AutopilotStepStatus } from './types'
 
 import { setTemperatureUnit } from './core/api'
 
-let msgId = 0
-const nextId = () => `m${++msgId}`
 const LANG_CYCLE = ['en-US', 'hi-IN', 'ur-PK']
 const PERSONA_TTS: Record<string, { rate: number; pitch: number }> = {
   jarvis: { rate: 0.9, pitch: 1.0 },
@@ -100,6 +99,8 @@ const [pendingApproval, setPendingApproval] = useState<ApprovalRequest | null>(n
     const found = s.sessions.find(ses => ses.id === s.activeSessionId)
     return found || s.sessions[0]
   })
+  const isChatThinking = loading && active.messages.some(m => m.role === 'assistant' && m.streaming && !m.content)
+  const orbDisplayState = isChatThinking ? 'thinking' : orb
 
   const [systemInfo, setSystemInfo] = useState<SystemInfo>({
     hostname: '-', os: '-', cpu_cores: 0, python_version: '-',
@@ -315,8 +316,8 @@ const [pendingApproval, setPendingApproval] = useState<ApprovalRequest | null>(n
   // ─── Mirror orb state to the floating orb window ───
   const orbVoiceActive = voiceInputStatus === 'listening' || voiceOutputStatus === 'speaking'
   useEffect(() => {
-    publishOrb({ orbState: orb, voiceActivity: orbVoiceActive })
-  }, [orb, orbVoiceActive])
+    publishOrb({ orbState: orbDisplayState, voiceActivity: orbVoiceActive })
+  }, [orbDisplayState, orbVoiceActive])
 
   // ─── Single SSE connection replaces all polling ───
   useEffect(() => {
@@ -634,8 +635,8 @@ const [pendingApproval, setPendingApproval] = useState<ApprovalRequest | null>(n
     }
     state.updateMessages(msgs => [
       ...msgs,
-      ...(userText ? [{ id: nextId(), role: 'user' as const, content: userText }] : []),
-      { id: nextId(), role: 'assistant' as const, content: reply },
+      ...(userText ? [{ id: nextMessageId(), role: 'user' as const, content: userText }] : []),
+      { id: nextMessageId(), role: 'assistant' as const, content: reply },
     ])
   }, [])
 
@@ -670,9 +671,9 @@ const [pendingApproval, setPendingApproval] = useState<ApprovalRequest | null>(n
       return
     }
 
-    state.updateMessages(msgs => [...msgs, { id: nextId(), role: 'user', content: text }])
+    state.updateMessages(msgs => [...msgs, { id: nextMessageId(), role: 'user', content: text }])
 
-    const aid = nextId()
+    const aid = nextMessageId()
     state.updateMessages(msgs => [...msgs, { id: aid, role: 'assistant', content: '', streaming: true, toolCalls: [] }])
 
     if (isAuto) {
@@ -1150,7 +1151,7 @@ const [pendingApproval, setPendingApproval] = useState<ApprovalRequest | null>(n
         {zen ? (
           <div className="relative h-full">
             <ZenStage
-              orbState={orb}
+              orbState={orbDisplayState}
               metrics={{
                 latency: metricsState.latency,
                 model: metricsState.model,
@@ -1199,7 +1200,7 @@ const [pendingApproval, setPendingApproval] = useState<ApprovalRequest | null>(n
         <StatusRibbon
           systemInfo={systemInfo}
           latency={metricsState.latency}
-          orbState={orb}
+          orbState={orbDisplayState}
           memory={metricsState.memory}
           backendOnline={backendOnline}
           onCommandPalette={() => setCommandOpen(o => !o)}
@@ -1232,7 +1233,7 @@ const [pendingApproval, setPendingApproval] = useState<ApprovalRequest | null>(n
               <div className="w-full max-w-[720px] flex-1 flex flex-col">
                 <div className={`relative flex flex-col min-h-0 ${autopilotRun ? 'flex-1' : ''}`}>
                   <AiCore
-                    orbState={orb}
+                    orbState={orbDisplayState}
                     metrics={{
                       latency: metricsState.latency,
                       model: metricsState.model,

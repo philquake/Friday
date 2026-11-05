@@ -16,6 +16,7 @@ class TestRegistry:
             "read_file",
             "write_file",
             "web_fetch",
+            "browse_search",
             "run_python",
             "remember",
             "recall",

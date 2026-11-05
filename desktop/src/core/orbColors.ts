@@ -4,7 +4,7 @@ import type { OrbState } from '../types'
 export const ORB_STATE_COLORS: Record<OrbState, string> = {
   idle: '#8fb4ff',
   listening: '#34d399',
-  thinking: '#fbbf24',
+  thinking: '#f59e0b',
   reasoning: '#a78bfa',
   executing: '#fb923c',
   searching: '#22d3ee',
@@ -15,3 +15,6 @@ export const ORB_STATE_COLORS: Record<OrbState, string> = {
 }
 
 export const orbColor = (state: string): string => ORB_STATE_COLORS[state as OrbState] ?? ORB_STATE_COLORS.idle
+
+export const orbVisualState = (state: OrbState, voiceActivity: boolean): OrbState =>
+  state === 'offline' || state === 'thinking' ? state : voiceActivity ? 'speaking' : state
