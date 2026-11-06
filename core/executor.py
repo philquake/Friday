@@ -186,12 +186,11 @@ class Executor:
 
         task.retries += 1
         task.status = "running"
-        task.error = None
-
         messages.append(
             {
                 "role": "user",
                 "content": f"The previous attempt failed: {task.error}\n\nPlease try again with a different approach.",
             }
         )
+        task.error = None
         yield from self._react_loop(messages, tool_definitions, 10, task)
