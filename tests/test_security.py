@@ -116,3 +116,15 @@ class TestApprovalRegistry:
         pending = reg.pending()
         assert len(pending) == 1
         assert pending[0]["tool"] == "rm_cmd"
+
+
+def test_chained_destructive_command_needs_confirmation():
+    pm = PermissionManager()
+    for cmd in ["echo hi && rm -r data", "cd x; del *", "powershell Remove-Item -Recurse .", "ls | mv a b"]:
+        assert pm.check_tool("run_command", {"command": cmd}).get("requires_confirmation"), cmd
+    assert not pm.check_tool("run_command", {"command": "echo hi"}).get("requires_confirmation")
+
+
+def test_sandbox_rejects_sibling_prefix(tmp_path):
+    s = Sandbox([str(tmp_path / "work")])
+    assert not s.check_path(str(tmp_path / "work-secrets" / "a.txt"))["allowed"]

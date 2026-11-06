@@ -1,4 +1,5 @@
 import os
+import re
 import threading
 import time
 import uuid
@@ -17,6 +18,9 @@ DESTRUCTIVE_PATTERNS: list[str] = [
     "rm /",
     "> /dev/",
 ]
+
+# Destructive verb anywhere in a shell line (after &&, ;, |), so chained commands still need approval.
+_DESTRUCTIVE_WORD = re.compile(r"\b(rm|mv|del|rd|rmdir|shutdown|format|remove-item)\b")
 
 _CONTROL_TOOLS: set[str] = {
     "open_app",
@@ -96,8 +100,11 @@ class Sandbox:
             return {"allowed": True}
         abs_path = os.path.abspath(path)
         for d in self.allowed_dirs:
-            if abs_path.startswith(d):
-                return {"allowed": True}
+            try:
+                if os.path.commonpath([abs_path, d]) == d:
+                    return {"allowed": True}
+            except ValueError:  # different drives on Windows
+                continue
         return {
             "allowed": False,
             "reason": f"Path '{path}' is outside allowed directories: {self.allowed_dirs}",
@@ -191,9 +198,7 @@ class PermissionManager:
         for blacklisted in self._command_blacklist:
             if blacklisted in cmd_lower:
                 return {"allowed": False, "reason": f"Command contains blacklisted pattern: '{blacklisted}'"}
-        if self._interactive_mode and any(
-            cmd_lower.startswith(prefix) for prefix in ["rm ", "mv ", "del ", "shutdown", "format ", "rd ", "rmdir "]
-        ):
+        if self._interactive_mode and _DESTRUCTIVE_WORD.search(cmd_lower):
             return {"allowed": True, "requires_confirmation": True}
         return {"allowed": True}
 
