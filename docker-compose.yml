@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   backend:
     build:
@@ -15,6 +13,8 @@ services:
       - ./desktop/api_server.py:/app/desktop/api_server.py
     environment:
       - PYTHONUNBUFFERED=1
+      - FRIDAY_BIND=0.0.0.0:8080
+      - API_SECRET=${API_SECRET:?set API_SECRET in .env}
     restart: unless-stopped
 
   frontend:

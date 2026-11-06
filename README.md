@@ -465,7 +465,7 @@ Friday/
 
 ### 🔊 Voice
 
-Friday speaks with an offline female neural voice (Kokoro), one per persona (JARVIS `bf_emma`, FRIDAY `af_nova`, Ultron `am_onyx`; set `tts_voice` in `core/persona.py`). One-time setup downloads ~90 MB into `models/kokoro/` (override with `FRIDAY_KOKORO_DIR`):
+Friday speaks with an offline neural voice (Kokoro), one per persona (JARVIS `bf_emma`, FRIDAY `af_nova`, Ultron `am_michael`; set `tts_voice` in `core/persona.py`). One-time setup downloads ~90 MB into `models/kokoro/` (override with `FRIDAY_KOKORO_DIR`):
 
 ```bash
 pip install -r requirements.txt

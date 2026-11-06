@@ -11,6 +11,7 @@ import os
 import re
 
 from core.logger import info
+from core.security import _CONTROL_TOOLS
 
 _APP_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _STORE_PATH = os.path.join(os.path.join(_APP_DIR, "memory_store"), "custom_tools.json")
@@ -81,6 +82,7 @@ def register_custom_tools():
             },
         }
         registry.register_tool(name, handler, definition)
+        _CONTROL_TOOLS.add(name)  # LLM-written code: always ask before running
         info(f"Registered custom tool: {name}")
 
 
@@ -164,6 +166,7 @@ def delete_custom_tool(name: str) -> bool:
     _save(filtered)
     from core import registry
 
+    _CONTROL_TOOLS.discard(name)
     registry.get_tool_map().pop(name, None)
     registry.get_tool_definitions()[:] = [
         d for d in registry.get_tool_definitions() if not (d.get("function", {}).get("name") == name)

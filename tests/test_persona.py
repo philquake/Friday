@@ -32,7 +32,7 @@ class TestPersona:
     def test_get_persona_config_valid(self):
         cfg = get_persona_config("ultron")
         assert cfg["name"] == "Ultron"
-        assert cfg["tts_voice"] == "am_onyx"
+        assert cfg["tts_voice"] == "am_michael"
 
     def test_get_persona_config_invalid_fallsback(self):
         cfg = get_persona_config("bad_key")

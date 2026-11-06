@@ -1764,7 +1764,10 @@ if __name__ == "__main__":
     from hypercorn.config import Config
 
     cfg = Config()
-    cfg.bind = ["127.0.0.1:8080"]
+    bind = os.environ.get("FRIDAY_BIND", "127.0.0.1:8080")
+    if not _API_SECRET and not bind.startswith(("127.0.0.1", "localhost")):
+        raise SystemExit("Refusing to listen on a non-loopback address without API_SECRET set.")
+    cfg.bind = [bind]
     cfg.keep_alive_timeout = 300
     cfg.body_timeout = 300
     loop = asyncio.new_event_loop()

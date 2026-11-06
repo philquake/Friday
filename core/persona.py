@@ -45,7 +45,7 @@ PERSONAS = {
         ),
         "tts_rate": 0.9,
         "tts_pitch": 0.8,
-        "tts_voice": "am_onyx",
+        "tts_voice": "am_michael",
     },
 }
 

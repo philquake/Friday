@@ -69,8 +69,9 @@ def main():
         try:
             from browser import close_browser
         except ImportError:
-            return
-        close_browser()
+            pass
+        else:
+            close_browser()
 
 
 def _launch_ui():

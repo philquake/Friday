@@ -1036,10 +1036,6 @@ const [pendingApproval, setPendingApproval] = useState<ApprovalRequest | null>(n
     { id: 'provider-ollama', label: `Model: Ollama (local)${providerStatus?.active === 'ollama' ? ' (active)' : ''}`, action: () => handleSwitchProvider('ollama') },
     { id: 'provider-openrouter', label: `Model: OpenRouter${providerStatus?.active === 'openrouter' ? ' (active)' : ''}`, action: () => handleSwitchProvider('openrouter') },
 
-    { id: 'provider-claude', label: `Model: Claude${providerStatus?.active === 'claude' ? ' (active)' : ''}`, action: () => handleSwitchProvider('claude') },
-    { id: 'provider-ollama', label: `Model: Ollama (local)${providerStatus?.active === 'ollama' ? ' (active)' : ''}`, action: () => handleSwitchProvider('ollama') },
-    { id: 'provider-openrouter', label: `Model: OpenRouter${providerStatus?.active === 'openrouter' ? ' (active)' : ''}`, action: () => handleSwitchProvider('openrouter') },
-
     { id: 'vision-screen', label: 'Analyze screen', action: handleVisionCaptureScreen },
     { id: 'vision-camera', label: 'Capture camera', action: handleVisionCaptureCamera },
     { id: 'toggle-holodeck', label: holodeckExpanded ? 'Hide Holodeck' : 'Show Holodeck', action: () => setHolodeckExpanded(e => !e) },
