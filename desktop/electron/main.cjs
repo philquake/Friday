@@ -69,7 +69,7 @@ function toggleConsole() {
     mainWin.webContents.send('console:toggle')
   }
 }
-let prefs = { x: null, y: null, pinned: true }
+let prefs = { x: null, y: null, pinned: true, main: null }
 
 function loadPrefs() {
   try {
@@ -233,15 +233,32 @@ function createOrbWindow() {
   })
 }
 
+// Saved main-window bounds, dropped if no display shows them any more (monitor unplugged).
+function savedMainBounds() {
+  const b = prefs.main
+  if (!b) return {}
+  const visible = screen.getAllDisplays().some(({ workArea: a }) => b.x < a.x + a.width && b.x + b.width > a.x && b.y < a.y + a.height && b.y + b.height > a.y)
+  return visible ? { x: b.x, y: b.y, width: b.width, height: b.height } : {}
+}
+
+function saveMainBounds() {
+  if (!mainWin || mainWin.isDestroyed() || mainWin.isMinimized()) return
+  prefs.main = { ...mainWin.getNormalBounds(), max: mainWin.isMaximized() }
+  savePrefs()
+}
+
 function createMainWindow() {
   mainWin = new BrowserWindow({
     width: 1400,
     height: 900,
+    ...savedMainBounds(),
     backgroundColor: '#000000',
     // backgroundThrottling off: hands-free / "Hey Friday" must keep listening while hidden in the tray
     webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, backgroundThrottling: false },
   })
+  if (prefs.main?.max) mainWin.maximize()
   load(mainWin)
+  for (const ev of ['resized', 'moved', 'maximize', 'unmaximize', 'close']) mainWin.on(ev, saveMainBounds)
   mainWin.webContents.on('console-message', (event) => {
     if (event.message) pushLine('ui', event.message, event.level === 'warning' ? 'warn' : event.level)
   })
