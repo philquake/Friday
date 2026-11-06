@@ -22,7 +22,8 @@ export interface ServerListener {
 }
 
 const TARGET_RATE = 16000
-const START_RMS = 0.02
+const MIN_START_RMS = 0.008 // quiet Windows mics peak well under the old fixed 0.02
+const NOISE_MARGIN = 4 // speech must be this many times louder than the room
 const END_SILENCE_MS = 900
 const MIN_SPEECH_MS = 300
 const MAX_UTTERANCE_MS = 15000
@@ -90,6 +91,8 @@ export async function startServerListener(opts: ServerListenerOptions): Promise<
 
   let stopped = false
   let peak = 0
+  let noiseFloor = 0.002
+  let lowLevelReported = false
   let muted = false
   let speaking = false
   let silenceMs = 0
@@ -143,12 +146,14 @@ export async function startServerListener(opts: ServerListenerOptions): Promise<
     for (let i = 0; i < data.length; i++) sum += data[i] * data[i]
     const rms = Math.sqrt(sum / data.length)
     if (rms > peak) peak = rms
+    const startRms = Math.max(MIN_START_RMS, noiseFloor * NOISE_MARGIN)
 
     if (!speaking) {
+      noiseFloor = noiseFloor * 0.95 + Math.min(rms, startRms) * 0.05 // track the room, ignore speech
       preroll.push(data)
       prerollMs += ms
       while (prerollMs > PREROLL_MS && preroll.length > 1) prerollMs -= (preroll.shift()!.length / ctx.sampleRate) * 1000
-      if (rms > START_RMS) {
+      if (rms > startRms) {
         speaking = true
         chunks = [...preroll]
         preroll.length = 0
@@ -160,7 +165,7 @@ export async function startServerListener(opts: ServerListenerOptions): Promise<
     }
 
     chunks.push(data)
-    if (rms > START_RMS) { speechMs += ms; silenceMs = 0 } else silenceMs += ms
+    if (rms > startRms) { speechMs += ms; silenceMs = 0 } else silenceMs += ms
     const lengthMs = chunks.reduce((n, c) => n + c.length, 0) / ctx.sampleRate * 1000
     if (silenceMs >= END_SILENCE_MS || lengthMs >= MAX_UTTERANCE_MS) finishUtterance()
   }
@@ -169,7 +174,11 @@ export async function startServerListener(opts: ServerListenerOptions): Promise<
   const levelCheck = setInterval(() => {
     if (stopped || muted) return
     if (ctx.state !== 'running') console.warn(`[voice] audio context is ${ctx.state}; the microphone is not being read`)
-    else if (peak < START_RMS) console.warn(`[voice] microphone level very low (peak ${peak.toFixed(4)}); check the Windows input device and volume`)
+    else if (peak < MIN_START_RMS) {
+      const msg = `microphone level very low (peak ${peak.toFixed(4)}); check the Windows input device and volume`
+      console.warn(`[voice] ${msg}`)
+      if (!lowLevelReported) { lowLevelReported = true; opts.onTranscribeError?.(msg) } // toast once, keep listening
+    }
     peak = 0
   }, 10000)
 
